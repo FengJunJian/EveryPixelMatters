@@ -8,7 +8,8 @@ from tqdm import tqdm
 from fcos_core.modeling.roi_heads.mask_head.inference import Masker
 from fcos_core.structures.bounding_box import BoxList
 from fcos_core.structures.boxlist_ops import boxlist_iou
-
+import numpy as np
+import pickle as plk
 
 def do_coco_evaluation(
     dataset,
@@ -50,6 +51,7 @@ def do_coco_evaluation(
         coco_results['keypoints'] = prepare_for_coco_keypoint(predictions, dataset)
 
     results = COCOResults(*iou_types)
+    pr = {}
     logger.info("Evaluating predictions")
     for iou_type in iou_types:
         with tempfile.NamedTemporaryFile() as f:
@@ -59,12 +61,35 @@ def do_coco_evaluation(
             res = evaluate_predictions_on_coco(
                 dataset.coco, coco_results[iou_type], file_path, iou_type
             )
+            p_a1 = res.eval['precision'][0, :, 0, 0, 2]  # (T, R, K, A, M)
+            r_a1 = res.eval['recall'][0, 0, 0, 2]  # (T, K, A, M)
+            x = np.arange(0.0, 1.01, 0.01)
+            pr[iou_type] = {'precision': p_a1, 'recall': r_a1}
             results.update(res)
     logger.info(results)
     check_expected_results(results, expected_results, expected_results_sigma_tol)
     if output_folder:
+        with open(os.path.join(output_folder,"coco_PR"),'wb') as f:
+            plk.dump(res.eval,f)
+        with open(os.path.join(output_folder,"coco_results.txt"),'w') as f:
+            recalls=np.mean(res.eval['recall'][0,:,:,:],axis=0)#@.5 mean classes
+            for k,v in results.results.items():
+                if isinstance(v,dict):
+                    for k1,v1 in v.items():
+                        f.write(str(k1)+'\t'+str(v1)+'\n')
+            f.write('Recall@.5:(all,small,medium,large)|(1,10,100)\n')#recall      = -np.ones((T,K,A,M))
+            # self.maxDets = [1, 10, 100]
+            # self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
+            # self.areaRngLbl = ['all', 'small', 'medium', 'large']
+            for r in recalls:
+                f.write(str(r) + '\n')
+            f.write('\n')
+        for iou_type in iou_types:
+            with open(os.path.join(output_folder,iou_type+"PR.txt"),'w') as f:
+                for d1,d2 in zip(x,p_a1):
+                    f.write(str(d1)+'\t'+str(d2)+'\n')
         torch.save(results, os.path.join(output_folder, "coco_results.pth"))
-    return results, coco_results
+    return results, coco_results,res
 
 
 def prepare_for_coco_detection(predictions, dataset):

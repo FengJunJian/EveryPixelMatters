@@ -49,6 +49,12 @@ class MetricLogger(object):
             assert isinstance(v, (float, int))
             self.meters[k].update(v)
 
+    def toDict(self):
+        Dict={}
+        for name,meter in self.meters.items():
+            Dict[name]=meter.median
+        return Dict
+
     def __getattr__(self, attr):
         if attr in self.meters:
             return self.meters[attr]

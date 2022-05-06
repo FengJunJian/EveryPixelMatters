@@ -5,17 +5,21 @@ Basic training script for PyTorch
 
 # Set up custom environment before nearly anything else is imported
 # NOTE: this should be the first import (no not reorder)
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+#sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from fcos_core.utils.env import setup_environment  # noqa F401 isort:skip
 
 import argparse
-import os
 
 import torch
 from fcos_core.config import cfg
 from fcos_core.data import make_data_loader, make_data_loader_source, make_data_loader_target
 from fcos_core.solver import make_lr_scheduler
 from fcos_core.solver import make_optimizer
-from fcos_core.engine.inference import inference
+#from fcos_core.engine.inference import inference
 from fcos_core.engine.trainer import do_train
 from fcos_core.modeling.detector import build_detection_model
 from fcos_core.modeling.backbone import build_backbone
@@ -28,6 +32,7 @@ from fcos_core.utils.comm import synchronize, \
 from fcos_core.utils.imports import import_file
 from fcos_core.utils.logger import setup_logger
 from fcos_core.utils.miscellaneous import mkdir
+
 
 
 
@@ -359,52 +364,53 @@ def train(cfg, local_rank, distributed):
         device,
         checkpoint_period,
         arguments,
+        cfg
     )
 
     return model
 
 
-def run_test(cfg, model, distributed):
-    if distributed:
-        model["backbone"] = model["backbone"].module
-        model["fcos"] = model["fcos"].module
-        #if cfg.MODEL.ADV.USE_DIS_P7:
-        #    model["dis_P7"] = model["dis_P7"].module
-        #if cfg.MODEL.ADV.USE_DIS_P6:
-        #    model["dis_P6"] = model["dis_P6"].module
-        #if cfg.MODEL.ADV.USE_DIS_P5:
-        #    model["dis_P5"] = model["dis_P5"].module
-        #if cfg.MODEL.ADV.USE_DIS_P4:
-        #    model["dis_P4"] = model["dis_P4"].module
-        #if cfg.MODEL.ADV.USE_DIS_P3:
-        #    model["dis_P3"] = model["dis_P3"].module
-    torch.cuda.empty_cache()  # TODO check if it helps
-    iou_types = ("bbox",)
-    if cfg.MODEL.MASK_ON:
-        iou_types = iou_types + ("segm",)
-    if cfg.MODEL.KEYPOINT_ON:
-        iou_types = iou_types + ("keypoints",)
-    output_folders = [None] * len(cfg.DATASETS.TEST)
-    dataset_names = cfg.DATASETS.TEST
-    if cfg.OUTPUT_DIR:
-        for idx, dataset_name in enumerate(dataset_names):
-            output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", dataset_name)
-            mkdir(output_folder)
-            output_folders[idx] = output_folder
-    data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
-    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
-        inference(
-            model,
-            data_loader_val,
-            dataset_name=dataset_name,
-            iou_types=iou_types,
-            box_only=False if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
-            device=cfg.MODEL.DEVICE,
-            expected_results=cfg.TEST.EXPECTED_RESULTS,
-            expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
-            output_folder=output_folder,
-        )
-        synchronize()
+# def run_test(cfg, model, distributed):
+#     if distributed:
+#         model["backbone"] = model["backbone"].module
+#         model["fcos"] = model["fcos"].module
+#         #if cfg.MODEL.ADV.USE_DIS_P7:
+#         #    model["dis_P7"] = model["dis_P7"].module
+#         #if cfg.MODEL.ADV.USE_DIS_P6:
+#         #    model["dis_P6"] = model["dis_P6"].module
+#         #if cfg.MODEL.ADV.USE_DIS_P5:
+#         #    model["dis_P5"] = model["dis_P5"].module
+#         #if cfg.MODEL.ADV.USE_DIS_P4:
+#         #    model["dis_P4"] = model["dis_P4"].module
+#         #if cfg.MODEL.ADV.USE_DIS_P3:
+#         #    model["dis_P3"] = model["dis_P3"].module
+#     torch.cuda.empty_cache()  # TODO check if it helps
+#     iou_types = ("bbox",)
+#     if cfg.MODEL.MASK_ON:
+#         iou_types = iou_types + ("segm",)
+#     if cfg.MODEL.KEYPOINT_ON:
+#         iou_types = iou_types + ("keypoints",)
+#     output_folders = [None] * len(cfg.DATASETS.TEST)
+#     dataset_names = cfg.DATASETS.TEST
+#     if cfg.OUTPUT_DIR:
+#         for idx, dataset_name in enumerate(dataset_names):
+#             output_folder = os.path.join(cfg.OUTPUT_DIR, "inference", dataset_name)
+#             mkdir(output_folder)
+#             output_folders[idx] = output_folder
+#     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
+#     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+#         inference(
+#             model,
+#             data_loader_val,
+#             dataset_name=dataset_name,
+#             iou_types=iou_types,
+#             box_only=False if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
+#             device=cfg.MODEL.DEVICE,
+#             expected_results=cfg.TEST.EXPECTED_RESULTS,
+#             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
+#             output_folder=output_folder,
+#         )
+#         synchronize()
 
 
 def main():
@@ -468,13 +474,13 @@ def main():
 
     model = train(cfg, args.local_rank, args.distributed)
 
-    if not args.skip_test:
-        run_test(cfg, model, args.distributed)
+    # if not args.skip_test:
+    #     run_test(cfg, model, args.distributed)
 
 
 if __name__ == "__main__":
-    import resource
-    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (4096, rlimit[1]))
+    # import Resource
+    # rlimit = Resource.getrlimit(Resource.RLIMIT_NOFILE)
+    # Resource.setrlimit(Resource.RLIMIT_NOFILE, (4096, rlimit[1]))
 
     main()

@@ -12,8 +12,8 @@ from ..utils.comm import all_gather
 from ..utils.comm import synchronize
 from ..utils.timer import Timer, get_time_str
 
-from fcos_core.engine.trainer import foward_detector
-
+# from fcos_core.engine.trainer import foward_detector
+from fcos_core.engine.forward import foward_detector
 
 def compute_on_dataset(model, data_loader, device, timer=None):
 

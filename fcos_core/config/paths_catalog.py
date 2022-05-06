@@ -5,7 +5,8 @@ import os
 
 
 class DatasetCatalog(object):
-    DATA_DIR = "datasets"
+    # DATA_DIR = "datasets"
+    DATA_DIR = ''  # "datasets"
     DATASETS = {
         "coco_2017_train": {
             "img_dir": "coco/train2017",
@@ -14,10 +15,6 @@ class DatasetCatalog(object):
         "coco_2017_val": {
             "img_dir": "coco/val2017",
             "ann_file": "coco/annotations/instances_val2017.json"
-        },
-        "coco_2017_test_dev": {
-            "img_dir": "coco/test2017",
-            "ann_file": "coco/annotations/image_info_test-dev2017.json"
         },
         "coco_2014_train": {
             "img_dir": "coco/train2014",
@@ -48,10 +45,8 @@ class DatasetCatalog(object):
             "ann_file": "coco/annotations/person_keypoints_minival2014.json",
         },
         "keypoints_coco_2014_valminusminival": {
-            "img_dir":
-            "coco/val2014",
-            "ann_file":
-            "coco/annotations/person_keypoints_valminusminival2014.json",
+            "img_dir": "coco/val2014",
+            "ann_file": "coco/annotations/person_keypoints_valminusminival2014.json",
         },
         "voc_2007_train": {
             "data_dir": "voc/VOC2007",
@@ -98,34 +93,365 @@ class DatasetCatalog(object):
             "split": "test"
             # PASCAL VOC2012 doesn't made the test annotations available, so there's no json annotation
         },
-        "cityscapes_train_cocostyle": {
-            "img_dir": "Cityscapes/leftImg8bit/train",
-            "ann_file": "Cityscapes/cocoAnnotations/cityscapes_train_cocostyle.json"
+        "cityscapes_fine_instanceonly_seg_train_cocostyle": {
+            "img_dir": "cityscapes/images",
+            "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_train.json"
         },
-        "cityscapes_train_caronly_cocostyle": {
-            "img_dir": "Cityscapes/leftImg8bit/train",
-            "ann_file": "Cityscapes/cocoAnnotations/cityscapes_train_caronly_cocostyle.json"
+        "cityscapes_fine_instanceonly_seg_val_cocostyle": {
+            "img_dir": "cityscapes/images",
+            "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_val.json"
         },
-        "cityscapes_val_caronly_cocostyle": {
-            "img_dir": "Cityscapes/leftImg8bit/val",
-            "ann_file": "Cityscapes/cocoAnnotations/cityscapes_val_caronly_cocostyle.json"
+        "cityscapes_fine_instanceonly_seg_test_cocostyle": {
+            "img_dir": "cityscapes/images",
+            "ann_file": "cityscapes/annotations/instancesonly_filtered_gtFine_test.json"
         },
-        "cityscapes_foggy_train_cocostyle": {
-            "img_dir": "Cityscapes/leftImg8bit_foggy/train",
-            "ann_file": "Cityscapes/cocoAnnotations/cityscapes_foggy_train_cocostyle.json"
+        "foggy_cityscapes_fine_instanceonly_seg_train_cocostyle": {
+            "img_dir": "foggy_cityscapes/images",
+            "ann_file": "foggy_cityscapes/annotations/foggy_instancesonly_filtered_gtFine_train.json"
         },
-        "cityscapes_foggy_val_cocostyle": {
-            "img_dir": "Cityscapes/leftImg8bit_foggy/val",
-            "ann_file": "Cityscapes/cocoAnnotations/cityscapes_foggy_val_cocostyle.json"
+        "foggy_cityscapes_fine_instanceonly_seg_val_cocostyle": {
+            "img_dir": "foggy_cityscapes/images",
+            "ann_file": "foggy_cityscapes/annotations/foggy_instancesonly_filtered_gtFine_val.json"
         },
-        "sim10k_trainval_caronly": {
-            "data_dir": "Sim10k",
-            "split": "trainval10k_caronly"
+        'sim10k_cocostyle': {
+            "img_dir": 'sim10k/JPEGImages',
+            "ann_file": 'sim10k/car_instances.json'
         },
-        "kitti_train_caronly": {
-            "data_dir": "KITTI",
-            "split": "train_caronly"
+        'kitti_cocostyle': {
+            "img_dir": 'kitti/training/image_2',
+            "ann_file": 'kitti/annotations/caronly_training.json'
         },
+        'cityscapes_car_train_cocostyle': {
+            "img_dir": 'cityscapes/images',
+            "ann_file": 'cityscapes/annotations/caronly_filtered_gtFine_train.json',
+        },
+        'cityscapes_car_val_cocostyle': {
+            "img_dir": 'cityscapes/images',
+            "ann_file": 'cityscapes/annotations/caronly_filtered_gtFine_val.json',
+        },
+        "voc_2007_train_watercolor_cocostyle": {
+            "img_dir": "voc/VOC2007/JPEGImages",
+            "ann_file": "voc/annotations/pascal_train2007.json"
+        },
+        "voc_2007_val_watercolor_cocostyle": {
+            "img_dir": "voc/VOC2007/JPEGImages",
+            "ann_file": "voc/annotations/pascal_val2007.json"
+        },
+        "voc_2012_train_watercolor_cocostyle": {
+            "img_dir": "voc/VOC2012/JPEGImages",
+            "ann_file": "voc/annotations/pascal_train2012.json"
+        },
+        "voc_2012_val_watercolor_cocostyle": {
+            "img_dir": "voc/VOC2012/JPEGImages",
+            "ann_file": "voc/annotations/Annotations/pascal_val2012.json"
+        },
+        'clipart_cocostyle': {
+            "img_dir": 'clipart/JPEGImages',
+            "ann_file": 'clipart/instances.json',
+        },
+        'watercolor_train_cocostyle': {
+            "img_dir": 'watercolor/JPEGImages',
+            "ann_file": 'watercolor/instances_train.json',
+        },
+        'watercolor_val_cocostyle': {
+            "img_dir": 'watercolor/JPEGImages',
+            "ann_file": 'watercolor/instances_test.json',
+        },
+        ####custom
+        'caronly_filtered_gtFine_train_cocostyle': {
+            "img_dir": 'cityscapes/leftImg8bit_trainvaltest/images',
+            "ann_file": 'cityscapes/annotations/caronly_filtered_gtFine_train_cocostyle.json'
+
+        },
+        'caronly_filtered_gtFine_val_cocostyle': {
+            "img_dir": 'cityscapes/leftImg8bit_trainvaltest/images',
+            "ann_file": 'cityscapes/annotations/caronly_filtered_gtFine_val_cocostyle.json'
+        },
+        'foggy_instancesonly_filtered_gtFine_train_cocostyle': {
+            "img_dir": 'cityscapes/leftImg8bit_trainvaltest_foggy/images',
+            "ann_file": 'cityscapes/annotations/foggy_instancesonly_filtered_gtFine_train_cocostyle.json'
+        },
+        'foggy_instancesonly_filtered_gtFine_val_cocostyle': {
+            "img_dir": 'cityscapes/leftImg8bit_trainvaltest_foggy/images',
+            "ann_file": 'cityscapes/annotations/foggy_instancesonly_filtered_gtFine_val_cocostyle.json'
+        },
+        'kitti_caronly_training_cocostyle': {
+            "img_dir": 'kitti/training/image_2',
+            "ann_file": 'kitti/annotations/kitti_caronly_training_cocostyle.json'
+        },
+
+        #######################Ship dataset#################################
+        ###transfer
+        'trainsfer_test_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/trainsfer_test_SeaShips_cocostyle.json'
+        },
+        'trainsfer_test_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/trainsfer_test_SMD_cocostyle.json'
+        },
+        'trainsfer_train_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/trainsfer_train_SeaShips_cocostyle.json'
+        },
+        'trainsfer_train_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/trainsfer_train_SMD_cocostyle.json'
+        },
+
+        ####cocostyle
+        ##multiple ship categories############################################################################
+        ############################################################################
+
+        'train_SS_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SS_SMD_cocostyle.json'
+        },
+        'test_SS_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/test_SS_SMD_cocostyle.json'
+        },
+
+        'train_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips_cocostyle.json'
+        },
+        'train_SeaShips0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips0_cocostyle.json'
+        },
+        'train_SeaShips1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips1_cocostyle.json'
+        },
+        'train_SeaShips2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips2_cocostyle.json'
+        },
+        'train_SeaShips3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips3_cocostyle.json'
+        },
+        'train_SeaShips4_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SeaShips4_cocostyle.json'
+        },
+        'test_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/test_SeaShips_cocostyle.json'
+        },
+        'train_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD_cocostyle.json'
+        },
+        'train_SMD0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD0_cocostyle.json'
+        },
+        'train_SMD1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD1_cocostyle.json'
+        },
+        'train_SMD2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD2_cocostyle.json'
+        },
+        'train_SMD3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD3_cocostyle.json'
+        },
+        'train_SMD4_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/train_SMD4_cocostyle.json'
+        },
+        'test_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/test_SMD_cocostyle.json'
+        },
+
+        'label0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/label0_cocostyle.json'
+        },
+        'label1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/label1_cocostyle.json'
+        },
+        'label2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/label2_cocostyle.json'
+        },
+        'label3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/label3_cocostyle.json'
+        },
+        'unlabel0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/unlabel0_cocostyle.json'
+        },
+        'unlabel1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/unlabel1_cocostyle.json'
+        },
+        'unlabel2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/unlabel2_cocostyle.json'
+        },
+        'unlabel3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/unlabel3_cocostyle.json'
+        },
+        'test1283_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/test1283_cocostyle.json'
+        },
+        'test10_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/test10_cocostyle.json'
+        },
+        'visual_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/visual_cocostyle.json'
+        },
+        'scale_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/scale_cocostyle.json'
+        },
+        'light_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/light_cocostyle.json'
+        },
+        'occlusion_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/occlusion_cocostyle.json'
+        },
+
+        ###only ship category############################################################################
+        ############################################################################
+        'ship_train_SS_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SS_SMD_cocostyle.json'
+        },
+        'ship_test_SS_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test_SS_SMD_cocostyle.json'
+        },
+
+        'ship_train_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips_cocostyle.json'
+        },
+        'ship_train_SeaShips0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips0_cocostyle.json'
+        },
+        'ship_train_SeaShips1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips1_cocostyle.json'
+        },
+        'ship_train_SeaShips2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips2_cocostyle.json'
+        },
+        'ship_train_SeaShips3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips3_cocostyle.json'
+        },
+        'ship_train_SeaShips4_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SeaShips4_cocostyle.json'
+        },
+        'ship_test_SeaShips_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test_SeaShips_cocostyle.json'
+        },
+        'ship_train_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD_cocostyle.json'
+        },
+        'ship_train_SMD0_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD0_cocostyle.json'
+        },
+        'ship_train_SMD1_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD1_cocostyle.json'
+        },
+        'ship_train_SMD2_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD2_cocostyle.json'
+        },
+        'ship_train_SMD3_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD3_cocostyle.json'
+        },
+        'ship_train_SMD4_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_train_SMD4_cocostyle.json'
+        },
+        'ship_test_SMD_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test_SMD_cocostyle.json'
+        },
+        'ship_test1283_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test1283_cocostyle.json'
+        },
+        'ship_test10_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test10_cocostyle.json'
+        },
+        'ship_scale_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/scale_cocostyle.json'
+        },
+        'ship_light_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_light_cocostyle.json'
+        },
+        'ship_occlusion_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_occlusion_cocostyle.json'
+        },
+
+        'ship_test_cocostyle': {
+            "img_dir": 'E:/SeaShips_SMD/JPEGImages',
+            "ann_file": 'E:/SeaShips_SMD/ship_test_cocostyle.json'
+        },
+
+        #######voc
+        'label0_SeaShips_SMD_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'label0'
+        },
+        'unlabel0_SeaShips_SMD_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'unlabel0'
+        },
+        'test1283_SeaShips_SMD_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'test1283'
+        },
+
+        'ship_train_SeaShips_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'train_SeaShips'
+        },
+        'ship_test_SeaShips_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'test_SeaShips'
+        },
+        'ship_train_SMD_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'train_SMD'
+        },
+        'ship_test_SMD_voc': {
+            "data_dir": 'E:/SeaShips_SMD/',
+            "split": 'test_SMD'
+        },
+
+        ###
+
     }
 
     @staticmethod

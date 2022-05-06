@@ -2,7 +2,7 @@
 import datetime
 import logging
 import time
-
+import os
 import torch
 import torch.distributed as dist
 
@@ -10,50 +10,51 @@ from fcos_core.utils.comm import get_world_size, is_pytorch_1_1_0_or_later
 from fcos_core.utils.metric_logger import MetricLogger
 
 from fcos_core.structures.image_list import to_image_list
-
-
-def foward_detector(model, images, targets=None, return_maps=False):
-    map_layer_to_index = {"P3": 0, "P4": 1, "P5": 2, "P6": 3, "P7": 4}
-    feature_layers = map_layer_to_index.keys()
-
-    model_backbone = model["backbone"]
-    model_fcos = model["fcos"]
-
-    images = to_image_list(images)
-    features = model_backbone(images.tensors)
-
-    f = {
-        layer: features[map_layer_to_index[layer]]
-        for layer in feature_layers
-    }
-    losses = {}
-
-    if model_fcos.training and targets is None:
-        # train G on target domain
-        proposals, proposal_losses, score_maps = model_fcos(
-            images, features, targets=None, return_maps=return_maps)
-        assert len(proposal_losses) == 1 and proposal_losses["zero"] == 0  # loss_dict should be empty dict
-    else:
-        # train G on source domain / inference
-        proposals, proposal_losses, score_maps = model_fcos(
-            images, features, targets=targets, return_maps=return_maps)
-
-    if model_fcos.training:
-        # training
-        m = {
-            layer: {
-                map_type:
-                score_maps[map_type][map_layer_to_index[layer]]
-                for map_type in score_maps
-            }
-            for layer in feature_layers
-        }
-        losses.update(proposal_losses)
-        return losses, f, m
-    else:
-        # inference
-        result = proposals
-        return result
+from tensorboardX import SummaryWriter
+from fcos_core.engine.forward import foward_detector
+from tools.ForTest import testbbox
+# def foward_detector(model, images, targets=None, return_maps=False):
+#     map_layer_to_index = {"P3": 0, "P4": 1, "P5": 2, "P6": 3, "P7": 4}
+#     feature_layers = map_layer_to_index.keys()
+#
+#     model_backbone = model["backbone"]
+#     model_fcos = model["fcos"]
+#
+#     images = to_image_list(images)
+#     features = model_backbone(images.tensors)
+#
+#     f = {
+#         layer: features[map_layer_to_index[layer]]
+#         for layer in feature_layers
+#     }
+#     losses = {}
+#
+#     if model_fcos.training and targets is None:
+#         # train G on target domain
+#         proposals, proposal_losses, score_maps = model_fcos(
+#             images, features, targets=None, return_maps=return_maps)
+#         assert len(proposal_losses) == 1 and proposal_losses["zero"] == 0  # loss_dict should be empty dict
+#     else:
+#         # train G on source domain / inference
+#         proposals, proposal_losses, score_maps = model_fcos(
+#             images, features, targets=targets, return_maps=return_maps)
+#
+#     if model_fcos.training:
+#         # training
+#         m = {
+#             layer: {
+#                 map_type:
+#                 score_maps[map_type][map_layer_to_index[layer]]
+#                 for map_type in score_maps
+#             }
+#             for layer in feature_layers
+#         }
+#         losses.update(proposal_losses)
+#         return losses, f, m
+#     else:
+#         # inference
+#         result = proposals
+#         return result
 
 
 def reduce_loss_dict(loss_dict):
@@ -90,7 +91,9 @@ def do_train(
         device,
         checkpoint_period,
         arguments,
+        cfg
 ):
+    writerT = SummaryWriter(os.path.join(cfg.OUTPUT_DIR, 'even'))
     USE_DIS_GLOBAL = arguments["use_dis_global"]
     USE_DIS_CENTER_AWARE = arguments["use_dis_ca"]
     used_feature_layers = arguments["use_feature_layers"]
@@ -161,7 +164,7 @@ def do_train(
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = reduce_loss_dict(loss_dict)
         losses_reduced = sum(loss for loss in loss_dict_reduced.values())
-        meters.update(loss_gs=losses_reduced, **loss_dict_reduced)
+        meters.update(loss_gs=losses_reduced, **loss_dict_reduced) #loss_gs
 
         losses.backward(retain_graph=True)
         del loss_dict, losses
@@ -275,7 +278,21 @@ def do_train(
             sample_optimizer = optimizer["dis_%s" % sample_layer]
         if USE_DIS_CENTER_AWARE:
             sample_optimizer = optimizer["dis_%s_CA" % sample_layer]
+
+
         if iteration % 20 == 0 or iteration == max_iter:
+            for k, v in meters.toDict().items():
+                writerT.add_scalar(tag=k, scalar_value=v, global_step=iteration)
+                writerT.flush()
+
+            lr_backbone = optimizer["backbone"].param_groups[0]["lr"]
+            lr_fcos = optimizer["fcos"].param_groups[0]["lr"]
+            lr_dis = sample_optimizer.param_groups[0]["lr"]
+            writerT.add_scalar(tag='total_loss',scalar_value=meters.meters['loss_gs'].median + meters.meters['loss_ds'].median + meters.meters['loss_dt'].median, global_step=iteration)
+            writerT.add_scalar(tag='lr_backbone', scalar_value=lr_backbone, global_step=iteration)
+            writerT.add_scalar(tag='lr_fcos', scalar_value=lr_fcos, global_step=iteration)
+            writerT.add_scalar(tag='lr_dis', scalar_value=lr_dis, global_step=iteration)
+
             logger.info(
                 meters.delimiter.join([
                     "eta: {eta}",
@@ -289,13 +306,24 @@ def do_train(
                     eta=eta_string,
                     iter=iteration,
                     meters=str(meters),
-                    lr_backbone=optimizer["backbone"].param_groups[0]["lr"],
-                    lr_fcos=optimizer["fcos"].param_groups[0]["lr"],
-                    lr_dis=sample_optimizer.param_groups[0]["lr"],
+                    lr_backbone=lr_backbone,
+                    lr_fcos=lr_fcos,
+                    lr_dis=lr_dis,
                     memory=torch.cuda.max_memory_allocated() / 1024.0 / 1024.0,
                 ))
         if iteration % checkpoint_period == 0:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
+            testResult = testbbox(cfg, model, str(iteration))  # will call the model.eval()
+            try:
+                for k, v in testResult[0][0].results['bbox'].items():
+                    # print(k,v)
+                    writerT.add_scalar(tag=k, scalar_value=v, global_step=iteration)
+                    writerT.flush()
+            except:
+                print('Error:testResult is empty!')
+            # model.train()  # see testbbox function
+            for k in model:
+                model[k].train()
         # if iteration > 5000 and iteration <= 6000 and iteration % 50 == 0:
         #     checkpointer.save("model_{:07d}".format(iteration), **arguments)
         if iteration == max_iter:

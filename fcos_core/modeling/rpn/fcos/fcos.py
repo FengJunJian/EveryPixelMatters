@@ -151,15 +151,16 @@ class FCOSModule(torch.nn.Module):
                 locations, box_cls, box_regression, centerness, targets
             )
             losses = {
-                "loss_cls": loss_box_cls,
+                "loss_cls": loss_box_cls, #
                 "loss_reg": loss_box_reg,
                 "loss_centerness": loss_centerness
             }
         else:
             losses = {
-                "zero": 0.0 * sum(0.0 * torch.sum(x) for x in box_cls)\
-                        +0.0 * sum(0.0 * torch.sum(x) for x in box_regression)\
-                        +0.0 * sum(0.0 * torch.sum(x) for x in centerness)\
+                "zero": torch.zeros((),dtype=torch.float32, device=box_cls[0].device)
+                    # 0.0 * sum(0.0 * torch.sum(x) for x in box_cls) \
+                    # + 0.0 * sum(0.0 * torch.sum(x) for x in box_regression) \
+                    # + 0.0 * sum(0.0 * torch.sum(x) for x in centerness)
             }
         if return_maps:
             return None, losses, score_maps

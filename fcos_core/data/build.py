@@ -239,6 +239,7 @@ def make_data_loader_source(cfg, is_train=True, is_distributed=False, start_iter
             num_workers=num_workers,
             batch_sampler=batch_sampler,
             collate_fn=collator,
+            prefetch_factor=2
         )
         data_loaders.append(data_loader)
     if is_train:

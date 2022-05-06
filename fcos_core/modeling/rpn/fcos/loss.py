@@ -157,12 +157,22 @@ class FCOSLossComputation(object):
         box_regression_flatten = torch.cat(box_regression_flatten, dim=0)
         centerness_flatten = torch.cat(centerness_flatten, dim=0)
         labels_flatten = torch.cat(labels_flatten, dim=0)
+
+        # if num_classes==1:
+        #     labels_flattenT=labels_flatten.view(-1,1)
+        # else:
+        #     labels_flattenT = torch.zeros(box_cls_flatten.size(), dtype=torch.int64,device=box_cls_flatten.device)
+        #     #batch,classlabels_flatten1.shape
+        #     labels_flattenT.scatter_(1, labels_flatten.view(-1, 1).long(), 1)  # one-hot for domain label
+
+        #label=labels_flatten1.argmax(dim=1)
+
         reg_targets_flatten = torch.cat(reg_targets_flatten, dim=0)
 
         pos_inds = torch.nonzero(labels_flatten > 0).squeeze(1)
         cls_loss = self.cls_loss_func(
             box_cls_flatten,
-            labels_flatten.int()
+            labels_flatten.int()#.int()
         ) / (pos_inds.numel() + N)  # add N to avoid dividing by a zero
 
         box_regression_flatten = box_regression_flatten[pos_inds]

@@ -3,8 +3,8 @@ from torch import nn
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
 
-from fcos_core import _C
-
+# from fcos_core import _C
+from torchvision import ops
 # TODO: Use JIT to replace CUDA implementation in the future.
 class _SigmoidFocalLoss(Function):
     @staticmethod
@@ -37,10 +37,10 @@ class _SigmoidFocalLoss(Function):
 sigmoid_focal_loss_cuda = _SigmoidFocalLoss.apply
 
 
-def sigmoid_focal_loss_cpu(logits, targets, gamma, alpha):
+def sigmoid_focal_loss(logits, targets, gamma, alpha):
     num_classes = logits.shape[1]
-    gamma = gamma[0]
-    alpha = alpha[0]
+    #gamma = gamma[0]
+    #alpha = alpha[0]
     dtype = targets.dtype
     device = targets.device
     class_range = torch.arange(1, num_classes+1, dtype=dtype, device=device).unsqueeze(0)
@@ -60,11 +60,11 @@ class SigmoidFocalLoss(nn.Module):
 
     def forward(self, logits, targets):
         device = logits.device
-        if logits.is_cuda:
-            loss_func = sigmoid_focal_loss_cuda
-        else:
-            loss_func = sigmoid_focal_loss_cpu
-
+        # if logits.is_cuda:
+        #     loss_func = sigmoid_focal_loss_cuda
+        # else:
+        #     loss_func = sigmoid_focal_loss_cpu
+        loss_func=sigmoid_focal_loss#ops.sigmoid_focal_loss
         loss = loss_func(logits, targets, self.gamma, self.alpha)
         return loss.sum()
 

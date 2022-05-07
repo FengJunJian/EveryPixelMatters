@@ -61,6 +61,25 @@ class ROIBoxHead(torch.nn.Module):
             dict(loss_classifier=loss_classifier, loss_box_reg=loss_box_reg),
         )
 
+    def featureROI(self, features, targets):
+        """
+        Aiming to extract the ROI features
+        Arguments:
+            features (list[Tensor]): feature-maps from possibly several levels
+            proposals (list[BoxList]): proposal boxes
+            targets (list[BoxList], optional): the ground-truth targets.
+
+        Returns:
+            x (Tensor): the result of the feature extractor
+            proposals (list[BoxList]): during training, the subsampled proposals
+                are returned. During testing, the predicted boxlists are returned
+            losses (dict[Tensor]): During training, returns the losses for the
+                head. During testing, returns an empty dict.
+        """
+
+        featuresRoi = self.feature_extractor(features, targets)
+
+        return featuresRoi
 
 def build_roi_box_head(cfg, in_channels):
     """

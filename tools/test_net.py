@@ -210,7 +210,7 @@ def main_testbbox():
                     writerT.flush()
             except:
                 print('Error:testResult is empty!')
-        #model.train()  # see testbbox function
+
 
 if __name__ == "__main__":
     main_testbbox()

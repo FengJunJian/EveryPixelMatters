@@ -16,6 +16,7 @@ class FCOSHead(torch.nn.Module):
             in_channels (int): number of channels of the input feature
         """
         super(FCOSHead, self).__init__()
+        self.cfg=cfg
         # TODO: Implement the sigmoid version first.
         num_classes = cfg.MODEL.FCOS.NUM_CLASSES - 1
 
@@ -81,11 +82,11 @@ class FCOSHead(torch.nn.Module):
         bbox_reg = []
         centerness = []
         for l, feature in enumerate(x):
-            cls_tower = self.cls_tower(feature)
-            logits.append(self.cls_logits(cls_tower))
-            centerness.append(self.centerness(cls_tower))
+            cls_tower = self.cls_tower(feature)#(batch,256,76,136)-(38,68)-(19,34)-(10,17)-(5,9)
+            logits.append(self.cls_logits(cls_tower))#(batch,classes,76,136)
+            centerness.append(self.centerness(cls_tower))#(batch,classes,76,136)
             bbox_reg.append(torch.exp(self.scales[l](
-                self.bbox_pred(self.bbox_tower(feature))
+                self.bbox_pred(self.bbox_tower(feature))#(batch,256,76,136)->(batch,4,76,136)
             )))
         return logits, bbox_reg, centerness
 
@@ -138,6 +139,37 @@ class FCOSModule(torch.nn.Module):
                 locations, box_cls, box_regression, 
                 centerness, images.image_sizes
             )
+
+    def featureROI(self, images, features, targets=None, return_maps=False):
+        """
+        Aiming to extract the ROI features
+        Arguments:
+            images (ImageList): images for which we want to compute the predictions
+            features (list[Tensor]): features computed from the images that are
+                used for computing the predictions. Each tensor in the list
+                correspond to different feature levels
+            targets (list[BoxList): ground-truth boxes present in the image (optional)
+
+        Returns:
+            boxes (list[BoxList]): the predicted boxes from the RPN, one BoxList per
+                image.
+            losses (dict[Tensor]): the losses for the model during training. During
+                testing, it is an empty dict.
+        """
+        box_cls, box_regression, centerness = self.head(features)
+        locations = self.compute_locations(features)
+
+        score_maps = {
+            "box_cls": box_cls,
+            "box_regression": box_regression,
+            "centerness": centerness
+        }
+        boxes, temp1, temp2=self._forward_test(
+            locations, box_cls, box_regression,
+            centerness, images.image_sizes
+        )
+        return boxes,score_maps
+
 
     def _forward_train(self, locations, box_cls, box_regression, centerness, targets, return_maps=False):
         score_maps = {

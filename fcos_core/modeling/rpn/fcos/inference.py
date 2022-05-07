@@ -76,7 +76,7 @@ class FCOSPostProcessor(torch.nn.Module):
             per_candidate_inds = candidate_inds[i]
             per_box_cls = per_box_cls[per_candidate_inds]
 
-            per_candidate_nonzeros = per_candidate_inds.nonzero()
+            per_candidate_nonzeros = torch.nonzero(per_candidate_inds)#per_candidate_inds.nonzero()
             per_box_loc = per_candidate_nonzeros[:, 0]
             per_class = per_candidate_nonzeros[:, 1] + 1
 
@@ -150,7 +150,7 @@ class FCOSPostProcessor(torch.nn.Module):
             result = []
             # skip the background
             for j in range(1, self.num_classes):
-                inds = (labels == j).nonzero().view(-1)
+                inds = torch.nonzero(labels == j).view(-1)
 
                 scores_j = scores[inds]
                 boxes_j = boxes[inds, :].view(-1, 4)

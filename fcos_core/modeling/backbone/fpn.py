@@ -65,7 +65,7 @@ class FPN(nn.Module):
             results.insert(0, getattr(self, layer_block)(last_inner))
 
         if isinstance(self.top_blocks, LastLevelP6P7):
-            last_results = self.top_blocks(x[-1], results[-1])
+            last_results = self.top_blocks(x[-1], results[-1])#C5,P5
             results.extend(last_results)
         elif isinstance(self.top_blocks, LastLevelMaxPool):
             last_results = self.top_blocks(results[-1])

@@ -63,3 +63,56 @@ class GeneralizedRCNN(nn.Module):
             return losses
 
         return result
+
+    def featureTarget(self,images, targets=None):
+        """
+        Aiming to obtain the feature vectors of proposals or targets.
+        For rpn, it generates the features of anchors.(using Pooler with resolution as same as ROI)
+        For ROI, it generates the features of proposals.
+        Arguments:
+            images (list[Tensor] or ImageList): images to be processed
+            targets (list[BoxList]): ground-truth boxes present in the image
+
+        Returns:
+            proposals (list[BoxList]):the output from the rpn. The proposals contains the fields of features and other like `scores`, `labels` and `mask` (for Mask R-CNN models)
+            rois (list[BoxList]):the output from the ROI. The format of rois is as same as the proposals. (optional)
+        """
+        if self.training and targets is None:  # model forward
+            raise ValueError("In training mode, targets should be passed")
+        images = to_image_list(images)  # [1,3,608,1088]
+        features = self.backbone(images.tensors)  # features [1,1024,38,68] extract the features of the backbone
+        boxFeatures = self.roi_heads.box.featureROI(features, targets)
+
+        # proposals, proposal_losses,targetFeatures = self.rpn.featureRPN(images, features,
+        #                                       targets)  # proposals：[BoxList(num_boxes=1000, image_width=1066, image_height=600, mode=xyxy)]
+        #model.backbone.body.layer1,layer2,layer3
+        boxes = []
+        #boxFeatures = None
+        if targets:
+            # for feature in features:
+            assert len(features) == 1, 'using the FPN'  # TODO fix for FPN
+            #_, C, H, W = features[0].shape
+            #boxes = [target.resize((W, H)) for target in targets]  # (width, height)
+            boxes=targets.copy()
+
+            #boxFeatures = self.pooler(features, boxes)  # target feature
+        for i,t in enumerate(boxes):
+            if len(t)>0:
+                t.add_field('featureROI',boxFeatures[0])# only for batch==1
+        return boxes
+
+    def featurePredict(self,images, targets=None):
+        """
+        Not yet finished!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        Aiming to obtain the feature vectors of proposals.
+        For rpn, it generates the features of anchors.(using Pooler with resolution as same as ROI)
+        For ROI, it generates the features of proposals.
+        Arguments:
+            images (list[Tensor] or ImageList): images to be processed
+            targets (list[BoxList]): ground-truth boxes present in the image (optional)
+
+        Returns:
+            proposals (list[BoxList]):the output from the rpn. The proposals contains the fields of features and other like `scores`, `labels` and `mask` (for Mask R-CNN models)
+            rois (list[BoxList]):the output from the ROI. The format of rois is as same as the proposals. (optional)
+        """
+        raise NotImplementedError

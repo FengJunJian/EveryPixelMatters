@@ -14,7 +14,7 @@ roi_align = ops.roi_align#_ROIAlign.apply
 class ROIAlign(nn.Module):
     def __init__(self, output_size, spatial_scale, sampling_ratio):
         super(ROIAlign, self).__init__()
-        self.output_size = output_size
+        self.output_size = output_size #(height, width)
         self.spatial_scale = spatial_scale
         self.sampling_ratio = sampling_ratio
 

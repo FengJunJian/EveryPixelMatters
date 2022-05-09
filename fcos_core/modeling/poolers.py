@@ -120,6 +120,39 @@ class Pooler(nn.Module):
 
         return result
 
+    def extract(self, x, boxes):
+        """
+        Custom: extract the feature patch accroding the boxes for x (list[Tensor(batch, channel, height, width)]),
+                refer to tf.image.crop_and_resize
+                Arguments:
+                    x (list[Tensor]): feature maps for each level
+                    boxes (list[BoxList]): boxes to be used to perform the pooling operation.
+                Returns:
+                    result (Tensor)
+                """
+        num_levels = len(self.poolers)
+        rois = self.convert_to_roi_format(boxes)  # (ids,xmin,ymin,xmax,ymax)
+        if num_levels == 1:
+            return self.poolers[0](x[0], rois)
+
+        #levels = self.map_levels(boxes)
+
+        num_rois = len(rois)
+        num_channels = x[0].shape[1]
+        #output_size = self.output_size[0]
+        result=[]
+        dtype, device = x[0].dtype, x[0].device
+        for xp in x:
+            num_channels = xp.shape[1]
+            result.append(torch.zeros((num_rois, num_channels)+tuple(self.output_size),dtype=dtype,device=device,))
+            #print(num_channels)
+        #result = [torch.zeros((num_rois, num_channels)+tuple(self.output_size),dtype=dtype,device=device,)]*num_levels
+
+        for level, (per_level_feature, pooler) in enumerate(zip(x, self.poolers)):
+            #idx_in_level = torch.nonzero(levels == level).squeeze(1)
+            rois_per_level = rois#[idx_in_level]
+            result[level]=pooler(per_level_feature, rois_per_level)
+        return result
 
 def make_pooler(cfg, head_name):
     resolution = cfg.MODEL[head_name].POOLER_RESOLUTION

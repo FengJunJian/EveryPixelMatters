@@ -11,11 +11,90 @@ from fcos_core.utils.miscellaneous import mkdir
 from fcos_core.modeling.detector import build_detection_model
 from fcos_core.modeling.backbone import build_backbone
 from fcos_core.modeling.rpn.rpn import build_rpn
-from fcos_core.engine.forward import foward_detector,foward_detector_roifeature
+from fcos_core.engine.forward import foward_detector,foward_detector_roifeature,foward_detector_roifeature_one
+from fcos_core.data import datasets as D
+from fcos_core.data.transforms import build_transforms
 from fcos_core.structures.bounding_box import BoxList
+from fcos_core.structures.image_list import to_image_list
 import logging
 from tqdm import tqdm
 from PIL import Image
+import cv2
+import numpy as np
+import xml.etree.ElementTree as ET
+def annotation_onefile(xmlpath):
+    """
+    加载一张图片的GT
+    Load image and bounding boxes info from XML file in the PASCAL VOC
+    format.
+    return (xmin,ymin,xmax,ymax)
+    """
+    filename = xmlpath#os.path.join(self._data_path, 'Annotations', index + '.xml')
+    # print(filename)
+    tree = ET.parse(filename)
+    objs = tree.findall('object')
+
+    num_objs = len(objs)
+
+    boxes = np.zeros((num_objs, 4), dtype=np.int16)
+    gt_classes = []
+
+    # Load object bounding boxes into a data frame.
+    for ix, obj in enumerate(objs):
+        bbox = obj.find('bndbox')
+        # Make pixel indexes 0-based
+        x1 = float(bbox.find('xmin').text)-1
+        y1 = float(bbox.find('ymin').text)-1
+        x2 = float(bbox.find('xmax').text)-1
+        y2 = float(bbox.find('ymax').text)-1
+        cls = obj.find('name').text.strip()
+        boxes[ix, :] = [x1, y1, x2, y2]
+        gt_classes.append(cls)
+    return boxes,gt_classes
+def dataBlob(imgfile,xmlfile,maskfile=None):
+    # imgfile='E:/SeaShips_SMD/JPEGImages/000001.jpg'
+    # xmlfile='E:/SeaShips_SMD/Annotations/000001.xml'
+    # maskfile='E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
+    transforms = build_transforms(cfg, False)
+    # dataset=D.COCODataset(ann_file, root, remove_images_without_annotations)
+    #img = Image.open(imgfile).convert('RGB')
+    img=cv2.imread(imgfile,cv2.IMREAD_COLOR)
+
+    H,W,C=img.shape
+    boxes, gt_classes = annotation_onefile(xmlfile)
+    # cv2.imshow('src',img)
+    # cv2.imshow('mo',imgmask)
+    # cv2.waitKey()
+    imgmasklist=None
+    if maskfile:
+        mask = cv2.imread(maskfile, cv2.IMREAD_GRAYSCALE)
+        imgmask=cv2.bitwise_and(img,img,mask=mask)
+        imgmask=Image.fromarray(cv2.cvtColor(imgmask, cv2.COLOR_BGR2RGB))
+
+    img=Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+    target = BoxList(boxes, (W,H), mode="xyxy")
+    target = target.clip_to_image(remove_empty=True)
+    # classes = [obj["category_id"] for obj in anno]
+    # classes = [self.json_category_id_to_contiguous_id[c] for c in classes]
+    # classes = torch.tensor(classes)
+    # target.add_field("labels", classes)
+
+    # masks = [obj["segmentation"] for obj in anno]
+    # masks = SegmentationMask(masks, img.size, mode='poly')
+    # target.add_field("masks", masks)
+
+    targetmask = target.copy_with_fields(target.fields(), True)
+    img, target = transforms(img, target)
+    if maskfile:
+        imgmask, targetmask = transforms(imgmask, targetmask)
+        imglist=to_image_list([img,imgmask],cfg.DATALOADER.SIZE_DIVISIBILITY)
+        targets=(target,targetmask)
+    else:
+        imglist=to_image_list(img,cfg.DATALOADER.SIZE_DIVISIBILITY)
+        targets=(target)
+
+    return imglist,targets
 
 def extractor(model,
             data_loader,
@@ -69,8 +148,54 @@ def extractor(model,
     torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
     return boxfeature_dict
 
+def extractorone(model,
+            device="cuda",
+            output_folder=None):
+    # convert to a torch.device for efficiency
+    device = torch.device(device)
+    cpu_device = torch.device("cpu")
+    logger = logging.getLogger("tools.featureExtractor.extractor")
+    #dataset = data_loader.dataset
+    #logger.info("Start extract the target features on {} dataset({} images).".format(dataset_name, len(dataset)))
 
-def featureExtractor(cfg, model, comment=''):
+
+    for k in model:
+        model[k].eval()
+    boxfeature_dict = {}
+    FeaMapFolder=os.path.join(output_folder,'feaMap')
+    if not os.path.exists(FeaMapFolder):
+        os.mkdir(FeaMapFolder)
+
+    imgfile = 'E:/SeaShips_SMD/JPEGImages/MVI_1624_VIS_00489.jpg'#000001
+    xmlfile = 'E:/SeaShips_SMD/Annotations/MVI_1624_VIS_00489.xml'
+    maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/MVI_1624_VIS_00489.png'
+    batch = dataBlob(imgfile, xmlfile, maskfile=maskfile)
+    filename=os.path.splitext(os.path.basename(imgfile))
+#for i, batch in enumerate(tqdm(data_loader)):
+    images, targets = batch#images:(1,3,608,1088), targets:(600,1066)
+    images = images.to(device)
+    targets=[target.to(device) for target in targets]
+    file_names=[]
+
+    file_names.append('{}{}'.format(filename[0],filename[1]))
+    file_names.append('{}mask{}'.format(filename[0],filename[1]))
+    with torch.no_grad():  # no compute the gradient
+        #roifeatures = foward_detector_roifeature(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
+        roifeatures = foward_detector_roifeature_one(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
+        #roifeatures = model.featureTarget(images,targets)
+        #outputFeatures=[(p,r) for p,r in zip(proposals,rois)]
+
+        # try:
+        #     outputFeatures=[roifeature.get_field('featureROI').to(cpu_device) for roifeature in roifeatures]
+        #     boxfeature_dict.update({img_id: result for img_id, result in zip(image_ids, outputFeatures)})
+        # except KeyError as e:
+        #     print('Error ',image_ids,)
+
+    torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
+    return boxfeature_dict
+
+
+def featureExtractor(cfg, model, comment='',useOneFile=False):
     torch.cuda.empty_cache()  #
     # iou_types = ("bbox",)
     # if cfg.MODEL.MASK_ON:
@@ -87,16 +212,24 @@ def featureExtractor(cfg, model, comment=''):
 
     data_loaders_val = make_data_loader(cfg, is_train=False,shuffle=False)
     results=[]
-    for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
-        result=extractor(
-            model,
-            data_loader_val,
-            dataset_name=dataset_name,
+    if useOneFile:
+        output_folder= os.path.join(cfg.OUTPUT_DIR, "extract"+comment, "customData")
+        mkdir(output_folder)
+        extractorone(model,
             device=cfg.MODEL.DEVICE,
-            output_folder=output_folder,
-        )
-        #results.append(result)
-        #torch.save()
+            output_folder=output_folder)
+    else:
+        for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
+            result=extractor(
+                model,
+                data_loader_val,
+                dataset_name=dataset_name,
+                device=cfg.MODEL.DEVICE,
+                output_folder=output_folder,
+            )
+            #results.append(result)
+
+
     return results
 
 if __name__=="__main__":
@@ -134,4 +267,4 @@ if __name__=="__main__":
 
     _ = checkpointer.load(f=os.path.join(output_dir,cfg.MODEL.WEIGHT), load_dis=False, load_opt_sch=False)
 
-    featureExtractor(cfg, model, comment=args.comment)#'feature'
+    featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'

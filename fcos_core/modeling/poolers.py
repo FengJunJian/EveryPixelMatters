@@ -55,7 +55,7 @@ class Pooler(nn.Module):
     def __init__(self, output_size, scales, sampling_ratio):
         """
         Arguments:
-            output_size (list[tuple[int]] or list[int]): output size for the pooled region
+            output_size (list[tuple[int]] or list[int]): output size for the pooled region,(height, width)
             scales (list[float]): scales for each Pooler
             sampling_ratio (int): sampling ratio for ROIAlign
         """
@@ -97,7 +97,7 @@ class Pooler(nn.Module):
             result (Tensor)
         """
         num_levels = len(self.poolers)
-        rois = self.convert_to_roi_format(boxes)
+        rois = self.convert_to_roi_format(boxes)#(ids,xmin,ymin,xmax,ymax)
         if num_levels == 1:
             return self.poolers[0](x[0], rois)
 

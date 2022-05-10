@@ -152,7 +152,7 @@ class Pooler(nn.Module):
             #idx_in_level = torch.nonzero(levels == level).squeeze(1)
             rois_per_level = rois#[idx_in_level]
             result[level]=pooler(per_level_feature, rois_per_level)
-        return result
+        return result,rois
 
 def make_pooler(cfg, head_name):
     resolution = cfg.MODEL[head_name].POOLER_RESOLUTION

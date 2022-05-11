@@ -139,11 +139,12 @@ def extractor(model,
             #roifeatures = model.featureTarget(images,targets)
             #outputFeatures=[(p,r) for p,r in zip(proposals,rois)]
 
-            # try:
-            #     outputFeatures=[roifeature.get_field('featureROI').to(cpu_device) for roifeature in roifeatures]
-            #     boxfeature_dict.update({img_id: result for img_id, result in zip(image_ids, outputFeatures)})
-            # except KeyError as e:
-            #     print('Error ',image_ids,)
+            try:
+                outputFeatures=[target.get_field('featureROI').to(cpu_device) for target in targets]
+                boxfeature_dict.update({img_id: result for img_id, result in zip(image_ids, outputFeatures)})
+            except KeyError as e:
+                print('Error ',image_ids,)
+
 
     torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
     return boxfeature_dict
@@ -215,7 +216,7 @@ def featureExtractor(cfg, model, comment='',useOneFile=False):
     if useOneFile:
         output_folder= os.path.join(cfg.OUTPUT_DIR, "extract"+comment, "customData")
         mkdir(output_folder)
-        extractorone(model,
+        result=extractorone(model,
             device=cfg.MODEL.DEVICE,
             output_folder=output_folder)
     else:
@@ -267,4 +268,4 @@ if __name__=="__main__":
 
     _ = checkpointer.load(f=os.path.join(output_dir,cfg.MODEL.WEIGHT), load_dis=False, load_opt_sch=False)
 
-    featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
+    featureExtractor(cfg, model, comment=args.comment,useOneFile=False)#'feature'

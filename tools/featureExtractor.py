@@ -96,6 +96,56 @@ def dataBlob(imgfile,xmlfile,maskfile=None):
 
     return imglist,targets
 
+def dataBlobAug(imgfiles,xmlfile):
+    # imgfile='E:/SeaShips_SMD/JPEGImages/000001.jpg'
+    # xmlfile='E:/SeaShips_SMD/Annotations/000001.xml'
+    # maskfile='E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
+    transforms = build_transforms(cfg, False)
+    boxes, gt_classes = annotation_onefile(xmlfile)
+
+    imglist=[]
+    targets=[]
+    for imgfile in imgfiles:
+        img=cv2.imread(imgfile,cv2.IMREAD_COLOR)
+        H,W,C=img.shape
+
+        # cv2.imshow('src',img)
+        # cv2.imshow('mo',imgmask)
+        # cv2.waitKey()
+        #imgmasklist=None
+        # if maskfile:
+        #     mask = cv2.imread(maskfile, cv2.IMREAD_GRAYSCALE)
+        #     imgmask=cv2.bitwise_and(img,img,mask=mask)
+        #     imgmask=Image.fromarray(cv2.cvtColor(imgmask, cv2.COLOR_BGR2RGB))
+
+        img=Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+        target = BoxList(boxes, (W,H), mode="xyxy")
+        target = target.clip_to_image(remove_empty=True)
+        # classes = [obj["category_id"] for obj in anno]
+        # classes = [self.json_category_id_to_contiguous_id[c] for c in classes]
+        # classes = torch.tensor(classes)
+        # target.add_field("labels", classes)
+
+        # masks = [obj["segmentation"] for obj in anno]
+        # masks = SegmentationMask(masks, img.size, mode='poly')
+        # target.add_field("masks", masks)
+        #targetmask = target.copy_with_fields(target.fields(), True)
+
+        img, target = transforms(img, target)
+        # if maskfile:
+        #     imgmask, targetmask = transforms(imgmask, targetmask)
+        #     imglist=to_image_list([img,imgmask],cfg.DATALOADER.SIZE_DIVISIBILITY)
+        #     targets=(target,targetmask)
+        # else:
+        imglist.append(img)
+        targets.append(target)
+
+    imglist=to_image_list(imglist,cfg.DATALOADER.SIZE_DIVISIBILITY)
+
+
+    return imglist,targets
+
 def extractor(model,
             data_loader,
             dataset_name,
@@ -167,10 +217,13 @@ def extractorone(model,
     if not os.path.exists(FeaMapFolder):
         os.mkdir(FeaMapFolder)
 
-    imgfile = 'E:/SeaShips_SMD/JPEGImages/MVI_1624_VIS_00489.jpg'#000001
-    xmlfile = 'E:/SeaShips_SMD/Annotations/MVI_1624_VIS_00489.xml'
-    maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/MVI_1624_VIS_00489.png'
-    batch = dataBlob(imgfile, xmlfile, maskfile=maskfile)
+    # imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'  #000001 MVI_1624_VIS_00489
+    imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'
+    imgfilea = 'E:/SeaShips_SMD/JPEGImagesAug/000001.jpg'
+    xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
+    # maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
+    maskfile=None
+    batch = dataBlob([imgfile,imgfilea], xmlfile, maskfile=maskfile)
     filename=os.path.splitext(os.path.basename(imgfile))
 #for i, batch in enumerate(tqdm(data_loader)):
     images, targets = batch#images:(1,3,608,1088), targets:(600,1066)
@@ -268,4 +321,4 @@ if __name__=="__main__":
 
     _ = checkpointer.load(f=os.path.join(output_dir,cfg.MODEL.WEIGHT), load_dis=False, load_opt_sch=False)
 
-    featureExtractor(cfg, model, comment=args.comment,useOneFile=False)#'feature'
+    featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'

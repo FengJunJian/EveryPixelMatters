@@ -204,7 +204,7 @@ def extractorone(model,
             output_folder=None):
     # convert to a torch.device for efficiency
     device = torch.device(device)
-    cpu_device = torch.device("cpu")
+    # cpu_device = torch.device("cpu")
     logger = logging.getLogger("tools.featureExtractor.extractor")
     #dataset = data_loader.dataset
     #logger.info("Start extract the target features on {} dataset({} images).".format(dataset_name, len(dataset)))
@@ -217,22 +217,24 @@ def extractorone(model,
     if not os.path.exists(FeaMapFolder):
         os.mkdir(FeaMapFolder)
 
-    # imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'  #000001 MVI_1624_VIS_00489
-    imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'
+    imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'  #000001 MVI_1624_VIS_00489
+    imgfiles = ['E:/SeaShips_SMD/JPEGImages/000001.jpg','E:/SeaShips_SMD/JPEGImagesAug/F000001.jpg','E:/SeaShips_SMD/JPEGImagesAug/R000001.jpg']
     imgfilea = 'E:/SeaShips_SMD/JPEGImagesAug/000001.jpg'
     xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
-    # maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
-    maskfile=None
-    batch = dataBlob([imgfile,imgfilea], xmlfile, maskfile=maskfile)
-    filename=os.path.splitext(os.path.basename(imgfile))
+    maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
+    batch=dataBlobAug(imgfiles,xmlfile)
+    #batch = dataBlob([imgfile,imgfilea], xmlfile, maskfile=maskfile)
+    filename=os.path.splitext(os.path.basename(imgfiles[0]))
 #for i, batch in enumerate(tqdm(data_loader)):
     images, targets = batch#images:(1,3,608,1088), targets:(600,1066)
     images = images.to(device)
     targets=[target.to(device) for target in targets]
-    file_names=[]
 
-    file_names.append('{}{}'.format(filename[0],filename[1]))
-    file_names.append('{}mask{}'.format(filename[0],filename[1]))
+    file_names=[]
+    file_names.append('{}{}'.format(filename[0], filename[1]))
+    file_names.append('F{}{}'.format(filename[0], filename[1]))
+    file_names.append('R{}{}'.format(filename[0], filename[1]))
+    # file_names.append('{}mask{}'.format(filename[0],filename[1]))
     with torch.no_grad():  # no compute the gradient
         #roifeatures = foward_detector_roifeature(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
         roifeatures = foward_detector_roifeature_one(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)

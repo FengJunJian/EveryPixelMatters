@@ -6,6 +6,7 @@ from fcos_core.utils.miscellaneous import mkdir
 from fcos_core.data.datasets.evaluation.coco.coco_eval import evaluate_predictions_on_coco,prepare_for_coco_detection
 from fcos_core.structures.boxlist_ops import boxlist_nms
 from fcos_core.data.datasets.evaluation.coco.coco_eval import COCOResults
+from fcos_core.data.transforms.preprocessing import horizon_detect
 import os
 import json
 import colorsys
@@ -66,7 +67,7 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
             saveImgPath = os.path.join(output_folder, 'imgS')
             if not os.path.exists(saveImgPath):
                 os.mkdir(saveImgPath)
-            visualization(predictions, data_loader_val.dataset, saveImgPath,cfg.MODEL.FCOS.NUM_CLASSES, 0.2,showScore=True)
+            visualization(predictions, data_loader_val.dataset, saveImgPath,cfg.MODEL.FCOS.NUM_CLASSES, 0.7,showScore=True)
         synchronize()
     return results
 
@@ -86,6 +87,9 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
         CLASS_NAMES[k]=v['name']
 
     def write_detection(im, dets,thiness=5,GT_color=None,show_score=False):
+        '''
+        dets:xmin,ymin,xmax,ymax,score
+        '''
         H,W,C=im.shape
         for i in range(len(dets)):
             rectangle_tmp = im.copy()
@@ -130,7 +134,6 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
     Imgroot=dataset.root
 
     for image_id, prediction in enumerate(tqdm(predictions)):
-        #print(image_id)
 
         if len(prediction) == 0:
             continue
@@ -167,10 +170,26 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
         dets=prediction.bbox.numpy()
         dets = np.hstack([dets,np.reshape(prediction.get_field("labels").numpy(),[-1,1])])#labels
         dets = np.hstack([dets, np.reshape(prediction.get_field("scores").numpy(), [-1, 1])])  # scores
-        inds=np.where(dets[:,5]>threshold)[0]#label>0
+
+        horizonLineT,horizonLineB,horizonLine=horizon_detect(im)
+        horizonLineT=round(horizonLineT)
+        horizonLineB = round(horizonLineB)
+        horizonLine = round(horizonLine)
+        im = cv2.line(im, (0, horizonLine), (im.shape[1] - 1, horizonLine), (0, 0, 255), 2)
+        im = cv2.line(im, (0, horizonLineT), (im.shape[1] - 1, horizonLineT), (0, 255, 255), 2)
+        # cv2.imshow('b',imgT)
+        # cv2.waitKey()
+        ymaxs=dets[:,3]
+        yinds=np.where(ymaxs-horizonLineT>0)[0]
+        # if len(yinds)<len(ymins):
+        #     print(image_path)
+        dets = dets[yinds, :]
+
+        inds = np.where(dets[:, 4] > 0)[0]  # label>0
+        dets = dets[inds, :]
+        inds=np.where(dets[:,5]>threshold)[0]#scores>threshold
         dets=dets[inds,:]
-        inds=np.where(dets[:,4]>0)[0]#scores>threshold
-        dets=dets[inds,:]
+
         im=write_detection(im,dets,thiness=2,show_score=showScore)
         #im=write_detection(im,gts,(0,0,255),thiness=2)
 

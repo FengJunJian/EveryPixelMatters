@@ -7,7 +7,7 @@ from .inference import make_fcos_postprocessor
 from .loss import make_fcos_loss_evaluator
 
 from fcos_core.layers import Scale
-
+from fcos_core.structures.image_list import to_image_list, ImageList
 
 class FCOSHead(torch.nn.Module):
     def __init__(self, cfg, in_channels):
@@ -110,7 +110,7 @@ class FCOSModule(torch.nn.Module):
         self.loss_evaluator = loss_evaluator
         self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
 
-    def forward(self, images, features, targets=None, return_maps=False):
+    def forward(self, images, features, targets=None, return_maps=False,return_None=False):
         """
         Arguments:
             images (ImageList): images for which we want to compute the predictions
@@ -127,18 +127,28 @@ class FCOSModule(torch.nn.Module):
         """
         box_cls, box_regression, centerness = self.head(features)
         locations = self.compute_locations(features)
- 
-        if self.training:
-            return self._forward_train(
-                locations, box_cls, 
-                box_regression, 
-                centerness, targets, return_maps
-            )
+        if return_None:
+            return locations
         else:
-            return self._forward_test(
-                locations, box_cls, box_regression, 
-                centerness, images.image_sizes
-            )
+            if self.training:
+                return self._forward_train(
+                    locations, box_cls,
+                    box_regression,
+                    centerness, targets, return_maps
+                )
+            else:
+                if isinstance(images,ImageList):
+                    return self._forward_test(#后处理
+                        locations, box_cls, box_regression,
+                        centerness, images.image_sizes
+                    )
+                else:#images is torch.Tensor
+                    B,C,H,W=images.shape
+                    ImgShape=[[H,W]]*B
+                    return self._forward_test(
+                        locations, box_cls, box_regression,
+                        centerness, ImgShape
+                    )
 
     def featureROI(self, images, features, targets=None, return_maps=False):
         """

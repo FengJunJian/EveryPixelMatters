@@ -15,13 +15,16 @@ from fcos_core.engine.forward import foward_detector,foward_detector_roifeature,
 from fcos_core.data import datasets as D
 from fcos_core.data.transforms import build_transforms
 from fcos_core.structures.bounding_box import BoxList
-from fcos_core.structures.image_list import to_image_list
+from fcos_core.structures.image_list import to_image_list,ImageList
 import logging
 from tqdm import tqdm
 from PIL import Image
 import cv2
 import numpy as np
 import xml.etree.ElementTree as ET
+from torch.utils.tensorboard import SummaryWriter
+#from fcos_core.modeling.detector import build_detection_model
+import time
 def annotation_onefile(xmlpath):
     """
     加载一张图片的GT
@@ -223,6 +226,7 @@ def extractorone(model,
     xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
     maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
     batch=dataBlobAug(imgfiles,xmlfile)
+
     #batch = dataBlob([imgfile,imgfilea], xmlfile, maskfile=maskfile)
     filename=os.path.splitext(os.path.basename(imgfiles[0]))
 #for i, batch in enumerate(tqdm(data_loader)):
@@ -288,6 +292,21 @@ def featureExtractor(cfg, model, comment='',useOneFile=False):
 
     return results
 
+
+def write_graph(model,output_dir):
+    for k in model:
+        model[k].eval()
+    #output_folder=''
+    sumwriter = SummaryWriter(output_dir)
+    model_input = torch.rand((1, 3, 608, 1088), device="cuda")
+    sumwriter.add_graph(model['backbone'], model_input, False)  ##(['backbone', 'fcos'])
+    features = model['backbone'](model_input)
+    # model_input = to_image_list(model_input)
+    flagF=torch.tensor(0).bool()
+    flagT=torch.tensor(1).bool()
+    sumwriter.add_graph(model['fcos'], [model_input, features,flagF,flagF,flagT], False)  ##erro
+
+    #RuntimeError: Tracer cannot infer type of ([BoxList(num_boxes=0, image_width=1088, image_height=608, mode=xyxy)], {}, None) :Could not infer type of list element: Only tensors and (possibly nested) tuples of tensors, lists, or dictsare supported as inputs or outputs of traced functions, but instead got value of type BoxList.
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument(
@@ -319,8 +338,35 @@ if __name__=="__main__":
 
 
     output_dir = cfg.OUTPUT_DIR
-    checkpointer = DetectronCheckpointer(cfg, model)
+    checkpointer = DetectronCheckpointer(cfg, model,)
 
     _ = checkpointer.load(f=os.path.join(output_dir,cfg.MODEL.WEIGHT), load_dis=False, load_opt_sch=False)
 
-    featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
+    imgfiles = ['E:/SeaShips_SMD/JPEGImages/000001.jpg', 'E:/SeaShips_SMD/JPEGImagesAug/F000001.jpg',
+                'E:/SeaShips_SMD/JPEGImagesAug/R000001.jpg']
+    imgfilea = 'E:/SeaShips_SMD/JPEGImagesAug/000001.jpg'
+    xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
+    batch = dataBlobAug(imgfiles, xmlfile)
+    images, targets = batch  # images:(1,3,608,1088), targets:(600,1066)
+    images = images.to("cuda")
+    targets = [target.to("cuda") for target in targets]
+    # model_input = torch.rand((1, 3, 608, 1088), device="cuda")
+    timeList=[]
+    for i in range(20):
+        begin=time.time()
+        features = model["backbone"](images.tensors)
+        out = model["fcos"](images, features)
+        end=time.time()
+        #del features,out
+        timeList.append(images.tensors.shape[0]/(end-begin))
+        print(end-begin,images.tensors.shape)
+    print(timeList)
+    # featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
+
+    # write_graph(model, output_dir)
+    # for k in model:
+    #     model[k].eval()
+    # torch.save(model['backbone'],'backbone.pt')
+    # torch.save(model['fcos'], 'fcos.pt')
+
+

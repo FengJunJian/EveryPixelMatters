@@ -231,7 +231,7 @@ def do_train(
                 grad_list.append(grad)
             features_t[layer].register_hook(save_grl_grad)
 
-        losses.backward()
+        losses.backward()#compute the gradient
 
         # Uncomment to log GRL gradient
         grl_grad = {}

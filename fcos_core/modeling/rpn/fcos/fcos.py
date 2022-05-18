@@ -110,7 +110,7 @@ class FCOSModule(torch.nn.Module):
         self.loss_evaluator = loss_evaluator
         self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
 
-    def forward(self, images, features, targets=None, return_maps=False,return_None=False):
+    def forward(self, images, features, targets=None, return_maps=False):
         """
         Arguments:
             images (ImageList): images for which we want to compute the predictions
@@ -127,28 +127,28 @@ class FCOSModule(torch.nn.Module):
         """
         box_cls, box_regression, centerness = self.head(features)
         locations = self.compute_locations(features)
-        if return_None:
-            return locations
+        # if return_None:
+        #     return locations
+        # else:
+        if self.training:
+            return self._forward_train(
+                locations, box_cls,
+                box_regression,
+                centerness, targets, return_maps
+            )
         else:
-            if self.training:
-                return self._forward_train(
-                    locations, box_cls,
-                    box_regression,
-                    centerness, targets, return_maps
+            if isinstance(images,ImageList):
+                return self._forward_test(#后处理
+                    locations, box_cls, box_regression,
+                    centerness, images.image_sizes
                 )
-            else:
-                if isinstance(images,ImageList):
-                    return self._forward_test(#后处理
-                        locations, box_cls, box_regression,
-                        centerness, images.image_sizes
-                    )
-                else:#images is torch.Tensor
-                    B,C,H,W=images.shape
-                    ImgShape=[[H,W]]*B
-                    return self._forward_test(
-                        locations, box_cls, box_regression,
-                        centerness, ImgShape
-                    )
+            else:#images is torch.Tensor
+                B,C,H,W=images.shape
+                ImgShape=[[H,W]]*B
+                return self._forward_test(
+                    locations, box_cls, box_regression,
+                    centerness, ImgShape
+                )
 
     def featureROI(self, images, features, targets=None, return_maps=False):
         """
@@ -220,7 +220,7 @@ class FCOSModule(torch.nn.Module):
         locations = []
         for level, feature in enumerate(features):
             h, w = feature.size()[-2:]
-            locations_per_level = self.compute_locations_per_level(
+            locations_per_level = self.compute_locations_per_level(#每层特征图生成检测位置
                 h, w, self.fpn_strides[level],
                 feature.device
             )

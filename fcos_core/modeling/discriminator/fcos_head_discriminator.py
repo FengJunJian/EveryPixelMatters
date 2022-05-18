@@ -57,8 +57,8 @@ class FCOSDiscriminator(nn.Module):
         elif self.grl_applied_domain == 'target':
             if domain == 'target':
                 feature = self.grad_reverse(feature)
-        x = self.dis_tower(feature)
-        x = self.cls_logits(x)
+        x = self.dis_tower(feature)#
+        x = self.cls_logits(x)#
 
         target = torch.full(x.shape, target, dtype=torch.float, device=x.device)
         loss = self.loss_fn(x, target)

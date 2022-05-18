@@ -335,7 +335,11 @@ if __name__=="__main__":
     model = {}
     model["backbone"] = build_backbone(cfg).to(cfg.MODEL.DEVICE)#model+fpn
     model["fcos"] = build_rpn(cfg, model["backbone"].out_channels).to(cfg.MODEL.DEVICE)#feature map -> cls+reg
-
+    # with open('FCOS.txt','w') as f:
+    #     f.write('Backbone:\n')
+    #     f.write(model["backbone"].__str__()+'\n')
+    #     f.write('FCOS:\n')
+    #     f.write(model["fcos"].__str__()+'\n')
 
     output_dir = cfg.OUTPUT_DIR
     checkpointer = DetectronCheckpointer(cfg, model,)
@@ -361,7 +365,9 @@ if __name__=="__main__":
         timeList.append(images.tensors.shape[0]/(end-begin))
         print(end-begin,images.tensors.shape)
     print(timeList)
-    # featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
+
+    if False:
+        featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
 
     # write_graph(model, output_dir)
     # for k in model:

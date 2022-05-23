@@ -108,7 +108,7 @@ class FCOSModule(torch.nn.Module):
         self.head = head
         self.box_selector_test = box_selector_test
         self.loss_evaluator = loss_evaluator
-        self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES
+        self.fpn_strides = cfg.MODEL.FCOS.FPN_STRIDES#
 
     def forward(self, images, features, targets=None, return_maps=False):
         """
@@ -126,12 +126,12 @@ class FCOSModule(torch.nn.Module):
                 testing, it is an empty dict.
         """
         box_cls, box_regression, centerness = self.head(features)
-        locations = self.compute_locations(features)
+        locations = self.compute_locations(features)#(76,136),(38,68),(19,34),(10,17),(5,9) 各level特征图的偏移
         # if return_None:
         #     return locations
         # else:
         if self.training:
-            return self._forward_train(
+            return self._forward_train(#偏移量、分类预测、回归预测、中心预测、GT
                 locations, box_cls,
                 box_regression,
                 centerness, targets, return_maps
@@ -167,7 +167,7 @@ class FCOSModule(torch.nn.Module):
                 testing, it is an empty dict.
         """
         box_cls, box_regression, centerness = self.head(features)
-        locations = self.compute_locations(features)
+        locations = self.compute_locations(features)#(x,y)中心点
 
         score_maps = {
             "box_cls": box_cls,

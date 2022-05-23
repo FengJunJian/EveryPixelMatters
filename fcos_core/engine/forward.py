@@ -23,7 +23,7 @@ def foward_detector(model, images, targets=None, return_maps=False):
     }
     losses = {}
 
-    if model_fcos.training and targets is None:
+    if model_fcos.training and targets is None:#target domain
         # train G on target domain
         proposals, proposal_losses, score_maps = model_fcos(
             images, features, targets=None, return_maps=return_maps)

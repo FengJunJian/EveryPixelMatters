@@ -147,7 +147,7 @@ def do_train(
 
         # optimizer.zero_grad()
         for k in optimizer:
-            optimizer[k].zero_grad()
+            optimizer[k].zero_grad()# 梯度清零
 
         ##########################################################################
         #################### (1): train G with source domain #####################

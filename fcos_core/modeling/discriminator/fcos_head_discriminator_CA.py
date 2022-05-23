@@ -59,10 +59,10 @@ class FCOSDiscriminator_CA(nn.Module):
         assert domain == 'source' or domain == 'target'
 
         # Generate cneter-aware map
-        box_cls_map = score_map["box_cls"].clone().sigmoid()
+        box_cls_map = score_map["box_cls"].clone().sigmoid()#cls sigmoid
         centerness_map = score_map["centerness"].clone().sigmoid()
 
-        n, c, h, w = box_cls_map.shape
+        n, c, h, w = box_cls_map.shape#shape
         maxpooling = nn.AdaptiveMaxPool3d((1, h, w))
         box_cls_map = maxpooling(box_cls_map)
 
@@ -84,8 +84,8 @@ class FCOSDiscriminator_CA(nn.Module):
             x = self.cls_logits(x)
 
             # Computer loss
-            target = torch.full(x.shape, target, dtype=torch.float, device=x.device)
-            loss = self.loss_fn_no_reduce(x, target)
+            targets = torch.full(x.shape, target, dtype=torch.float, device=x.device)
+            loss = self.loss_fn_no_reduce(x, targets)
             loss = torch.mean(atten_map * loss)
 
         # Center-aware feature (w/ GRL)
@@ -100,7 +100,7 @@ class FCOSDiscriminator_CA(nn.Module):
             x = self.dis_tower(feature)
             x = self.cls_logits(x)
 
-            target = torch.full(x.shape, target, dtype=torch.float, device=x.device)
-            loss = self.loss_fn(x, target)
+            targets = torch.full(x.shape, target, dtype=torch.float, device=x.device)
+            loss = self.loss_fn(x, targets)
 
         return loss

@@ -3,8 +3,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from fcos_core.layers import ROIAlign
-
+#from fcos_core.layers import ROIAlign
+from torchvision.ops import RoIAlign
 from .utils import cat
 
 
@@ -59,13 +59,12 @@ class Pooler(nn.Module):
             scales (list[float]): scales for each Pooler
             sampling_ratio (int): sampling ratio for ROIAlign
         """
+
         super(Pooler, self).__init__()
         poolers = []
         for scale in scales:
             poolers.append(
-                ROIAlign(
-                    output_size, spatial_scale=scale, sampling_ratio=sampling_ratio
-                )
+                RoIAlign(output_size, spatial_scale=scale, sampling_ratio=sampling_ratio)
             )
         self.poolers = nn.ModuleList(poolers)
         self.output_size = output_size
@@ -105,11 +104,11 @@ class Pooler(nn.Module):
 
         num_rois = len(rois)
         num_channels = x[0].shape[1]
-        output_size = self.output_size[0]
+        output_size = self.output_size
 
         dtype, device = x[0].dtype, x[0].device
         result = torch.zeros(
-            (num_rois, num_channels, output_size, output_size),
+            [num_rois, num_channels]+output_size,
             dtype=dtype,
             device=device,
         )
@@ -122,6 +121,7 @@ class Pooler(nn.Module):
 
     def extract(self, x, boxes):
         """
+        提取各level的boxes特征
         Custom: extract the feature patch accroding the boxes for x (list[Tensor(batch, channel, height, width)]),
                 refer to tf.image.crop_and_resize
                 Arguments:

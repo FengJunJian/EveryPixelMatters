@@ -25,6 +25,7 @@ import xml.etree.ElementTree as ET
 from torch.utils.tensorboard import SummaryWriter
 #from fcos_core.modeling.detector import build_detection_model
 import time
+
 def annotation_onefile(xmlpath):
     """
     加载一张图片的GT
@@ -55,19 +56,16 @@ def annotation_onefile(xmlpath):
         gt_classes.append(cls)
     return boxes,gt_classes
 def dataBlob(imgfile,xmlfile,maskfile=None):
-    # imgfile='E:/SeaShips_SMD/JPEGImages/000001.jpg'
-    # xmlfile='E:/SeaShips_SMD/Annotations/000001.xml'
-    # maskfile='E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
+    '''
+    two imgs: one for original image and the other for image with mask targets
+    xml
+    '''
+
     transforms = build_transforms(cfg, False)
-    # dataset=D.COCODataset(ann_file, root, remove_images_without_annotations)
-    #img = Image.open(imgfile).convert('RGB')
     img=cv2.imread(imgfile,cv2.IMREAD_COLOR)
 
     H,W,C=img.shape
     boxes, gt_classes = annotation_onefile(xmlfile)
-    # cv2.imshow('src',img)
-    # cv2.imshow('mo',imgmask)
-    # cv2.waitKey()
     imgmasklist=None
     if maskfile:
         mask = cv2.imread(maskfile, cv2.IMREAD_GRAYSCALE)
@@ -99,53 +97,41 @@ def dataBlob(imgfile,xmlfile,maskfile=None):
 
     return imglist,targets
 
-def dataBlobAug(imgfiles,xmlfile):
-    # imgfile='E:/SeaShips_SMD/JPEGImages/000001.jpg'
-    # xmlfile='E:/SeaShips_SMD/Annotations/000001.xml'
-    # maskfile='E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
-    transforms = build_transforms(cfg, False)
+def dataBlobDiffBackground(imgfile,xmlfile,transforms):
     boxes, gt_classes = annotation_onefile(xmlfile)
 
-    imglist=[]
-    targets=[]
-    for imgfile in imgfiles:
-        img=cv2.imread(imgfile,cv2.IMREAD_COLOR)
-        H,W,C=img.shape
+    #for imgfile in imgfiles:
+    img=cv2.imread(imgfile,cv2.IMREAD_COLOR)
 
-        # cv2.imshow('src',img)
-        # cv2.imshow('mo',imgmask)
-        # cv2.waitKey()
-        #imgmasklist=None
-        # if maskfile:
-        #     mask = cv2.imread(maskfile, cv2.IMREAD_GRAYSCALE)
-        #     imgmask=cv2.bitwise_and(img,img,mask=mask)
-        #     imgmask=Image.fromarray(cv2.cvtColor(imgmask, cv2.COLOR_BGR2RGB))
+    imgmask=np.ones_like(img)*125
+    boxes=boxes.astype(np.int64)
+    for xmin,ymin,xmax,ymax in boxes:
+        imgmask[ymin:ymax,xmin:xmax]=img[ymin:ymax,xmin:xmax].copy()
+    H,W,C=img.shape
 
-        img=Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-        boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
-        target = BoxList(boxes, (W,H), mode="xyxy")
-        target = target.clip_to_image(remove_empty=True)
-        # classes = [obj["category_id"] for obj in anno]
-        # classes = [self.json_category_id_to_contiguous_id[c] for c in classes]
-        # classes = torch.tensor(classes)
-        # target.add_field("labels", classes)
+    img=Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    imgmask = Image.fromarray(cv2.cvtColor(imgmask, cv2.COLOR_BGR2RGB))
 
-        # masks = [obj["segmentation"] for obj in anno]
-        # masks = SegmentationMask(masks, img.size, mode='poly')
-        # target.add_field("masks", masks)
-        #targetmask = target.copy_with_fields(target.fields(), True)
+    boxes = torch.as_tensor(boxes).reshape(-1, 4)  # guard against no boxes
+    target = BoxList(boxes, (W,H), mode="xyxy")
+    target = target.clip_to_image(remove_empty=True)
+    # classes = [obj["category_id"] for obj in anno]
+    # classes = [self.json_category_id_to_contiguous_id[c] for c in classes]
+    # classes = torch.tensor(classes)
+    # target.add_field("labels", classes)
 
-        img, target = transforms(img, target)
-        # if maskfile:
-        #     imgmask, targetmask = transforms(imgmask, targetmask)
-        #     imglist=to_image_list([img,imgmask],cfg.DATALOADER.SIZE_DIVISIBILITY)
-        #     targets=(target,targetmask)
-        # else:
-        imglist.append(img)
-        targets.append(target)
+    # masks = [obj["segmentation"] for obj in anno]
+    # masks = SegmentationMask(masks, img.size, mode='poly')
+    # target.add_field("masks", masks)
+    #targetmask = target.copy_with_fields(target.fields(), True)
+    targetmask = target.copy_with_fields(list(target.extra_fields.keys()), skip_missing=True)
+    img, target = transforms(img, target)
+    imgmask, targetmask = transforms(imgmask, targetmask)
+    imglist = [img,imgmask]
+
+    targets=[target,targetmask]
 
     imglist=to_image_list(imglist,cfg.DATALOADER.SIZE_DIVISIBILITY)
-
 
     return imglist,targets
 
@@ -202,60 +188,67 @@ def extractor(model,
     torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
     return boxfeature_dict
 
-def extractorone(model,
+def extractorBatch(model,
             device="cuda",
             output_folder=None):
     # convert to a torch.device for efficiency
     device = torch.device(device)
     # cpu_device = torch.device("cpu")
-    logger = logging.getLogger("tools.featureExtractor.extractor")
-    #dataset = data_loader.dataset
-    #logger.info("Start extract the target features on {} dataset({} images).".format(dataset_name, len(dataset)))
-
+    transforms = build_transforms(cfg, False)
+    MainPath = 'E:/SeaShips_SMD/ImageSets\Main'
+    SSset = 'test_SeaShips.txt'
+    SMDset = 'test_SMD.txt'
+    MP = os.path.join(MainPath, SSset)
+    with open(MP, 'r') as f:
+        names = f.readlines()
+    names = [name.strip() for name in names]
+    imgPath = 'E:/SeaShips_SMD/JPEGImages'
+    xmlPath = 'E:/SeaShips_SMD/Annotations'
 
     for k in model:
         model[k].eval()
     boxfeature_dict = {}
-    FeaMapFolder=os.path.join(output_folder,'feaMap')
+    FeaMapFolder=os.path.join(output_folder,'feaMapD')
+
     if not os.path.exists(FeaMapFolder):
         os.mkdir(FeaMapFolder)
 
-    imgfile = 'E:/SeaShips_SMD/JPEGImages/000001.jpg'  #000001 MVI_1624_VIS_00489
-    imgfiles = ['E:/SeaShips_SMD/JPEGImages/000001.jpg','E:/SeaShips_SMD/JPEGImagesAug/F000001.jpg','E:/SeaShips_SMD/JPEGImagesAug/R000001.jpg']
-    imgfilea = 'E:/SeaShips_SMD/JPEGImagesAug/000001.jpg'
-    xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
-    maskfile = 'E:/SeaShips_SMD/Segmentations1/SegmentationObjectPNG/000001.png'
-    batch=dataBlobAug(imgfiles,xmlfile)
+    diffps=[]
+    diffpNs=[]
+    for name in names:
+        #imagefile= imagefiles[0]
 
-    #batch = dataBlob([imgfile,imgfilea], xmlfile, maskfile=maskfile)
-    filename=os.path.splitext(os.path.basename(imgfiles[0]))
-#for i, batch in enumerate(tqdm(data_loader)):
-    images, targets = batch#images:(1,3,608,1088), targets:(600,1066)
-    images = images.to(device)
-    targets=[target.to(device) for target in targets]
+        imgp=os.path.join(imgPath,name+'.jpg')
+        xmlp=os.path.join(xmlPath,name+'.xml')
+        batch=dataBlobDiffBackground(imgp,xmlp,transforms)
 
-    file_names=[]
-    file_names.append('{}{}'.format(filename[0], filename[1]))
-    file_names.append('F{}{}'.format(filename[0], filename[1]))
-    file_names.append('R{}{}'.format(filename[0], filename[1]))
-    # file_names.append('{}mask{}'.format(filename[0],filename[1]))
-    with torch.no_grad():  # no compute the gradient
-        #roifeatures = foward_detector_roifeature(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
-        roifeatures = foward_detector_roifeature_one(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
-        #roifeatures = model.featureTarget(images,targets)
-        #outputFeatures=[(p,r) for p,r in zip(proposals,rois)]
+        images, targets = batch#images:(1,3,608,1088), targets:(600,1066)
+        images = images.to(device)
+        targets=[target.to(device) for target in targets]
 
-        # try:
-        #     outputFeatures=[roifeature.get_field('featureROI').to(cpu_device) for roifeature in roifeatures]
-        #     boxfeature_dict.update({img_id: result for img_id, result in zip(image_ids, outputFeatures)})
-        # except KeyError as e:
-        #     print('Error ',image_ids,)
+        file_names=[]
+        file_names.append('{}'.format(name))
+        file_names.append('Mas{}'.format(name))
 
-    torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
+        with torch.no_grad():  # no compute the gradient
+            #roifeatures = foward_detector_roifeature(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
+            diffp,diffpN = foward_detector_roifeature_one(model, images, targets=targets,saveFolder=FeaMapFolder,imgnnames=file_names)
+            diffps.append(diffp)
+            diffpNs.append(diffpN)
+            #roifeatures = model.featureTarget(images,targets)
+            #outputFeatures=[(p,r) for p,r in zip(proposals,rois)]
+
+            # try:
+            #     outputFeatures=[roifeature.get_field('featureROI').to(cpu_device) for roifeature in roifeatures]
+            #     boxfeature_dict.update({img_id: result for img_id, result in zip(image_ids, outputFeatures)})
+            # except KeyError as e:
+            #     print('Error ',image_ids,)
+    torch.save({'diffps':diffps,'diffpNs':diffpNs },os.path.join(FeaMapFolder,'SSdiffp.pth'))
+    #torch.save(boxfeature_dict,os.path.join(output_folder,'targetFeatures.pth'))
     return boxfeature_dict
 
 
-def featureExtractor(cfg, model, comment='',useOneFile=False):
+def featureExtractor(cfg, model, comment='',useBatchFile=False):
     torch.cuda.empty_cache()  #
     # iou_types = ("bbox",)
     # if cfg.MODEL.MASK_ON:
@@ -272,10 +265,10 @@ def featureExtractor(cfg, model, comment='',useOneFile=False):
 
     data_loaders_val = make_data_loader(cfg, is_train=False,shuffle=False)
     results=[]
-    if useOneFile:
+    if useBatchFile:
         output_folder= os.path.join(cfg.OUTPUT_DIR, "extract"+comment, "customData")
         mkdir(output_folder)
-        result=extractorone(model,
+        result=extractorBatch(model,
             device=cfg.MODEL.DEVICE,
             output_folder=output_folder)
     else:
@@ -307,6 +300,40 @@ def write_graph(model,output_dir):
     sumwriter.add_graph(model['fcos'], [model_input, features,flagF,flagF,flagT], False)  ##erro
 
     #RuntimeError: Tracer cannot infer type of ([BoxList(num_boxes=0, image_width=1088, image_height=608, mode=xyxy)], {}, None) :Could not infer type of list element: Only tensors and (possibly nested) tuples of tensors, lists, or dictsare supported as inputs or outputs of traced functions, but instead got value of type BoxList.
+
+def visualDifferBackground(path):
+    #计算特征差异热力图
+    smdpath=os.path.join(path,'SMDdiffp.pth')
+    sspath=os.path.join(path,'SSdiffp.pth')
+
+    dataSMD=torch.load(smdpath)
+    dataSS=torch.load(sspath)
+    print(dataSMD.keys(),dataSS.keys())
+
+    diffps=dataSMD['diffps']+dataSS['diffps']
+    Num=len(diffps)
+    rN=Num
+    inds=np.random.choice(Num,rN,False)
+    diffpArr=np.zeros((1,)+diffps[0].shape[1:],np.float32)
+    sum=0
+    for ind in inds:
+        diffp=diffps[ind]
+    #for diffp in tqdm(diffps[a]):
+        if diffp is None:
+            continue
+            #print(diffp.shape)
+        sum+=len(diffp)
+        diffpArr += diffp.sum(0)
+    diffpArr/=sum
+        #diffpArr=np.concatenate([diffpArr,diffp],axis=0)
+    #diffpArr=diffpArr.mean(0)
+    diffpArr=diffpArr.mean(0)
+    diffpN = cv2.normalize(diffpArr, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+    diffpM = cv2.applyColorMap(diffpN, cv2.COLORMAP_JET)  # 变成伪彩图
+    cv2.imshow('b',diffpM)
+    cv2.imwrite('SS+SMD{}.jpg'.format(rN),diffpM)
+    cv2.waitKey()
+    #diffpNs=data['diffpNs']
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument(
@@ -332,42 +359,33 @@ if __name__=="__main__":
     cfg.merge_from_list(args.opts)
     cfg.freeze()
 
+    #
+    # #imagefiles = os.listdir(imgPath)
+    #
+    # for name in names:
+    #     name= names[0]
+    #     #name,ext=os.path.splitext(imagefile)
+    #     imgp=os.path.join(imgPath,name+'.jpg')
+    #     xmlp=os.path.join(xmlPath,name+'.xml')
+    #     # imgfile=imgp
+    #     # xmlfile=xmlp
+    #     batch=dataBlobDiffBackground(imgp,xmlp,transforms)
+    output_dir = cfg.OUTPUT_DIR
+    # path='E:/DA2/logSSToSMDshipC/extractfeature/customData/feaMapD'
+    # visualDifferBackground(path)
+    # exit(2)
     model = {}
     model["backbone"] = build_backbone(cfg).to(cfg.MODEL.DEVICE)#model+fpn
     model["fcos"] = build_rpn(cfg, model["backbone"].out_channels).to(cfg.MODEL.DEVICE)#feature map -> cls+reg
-    # with open('FCOS.txt','w') as f:
-    #     f.write('Backbone:\n')
-    #     f.write(model["backbone"].__str__()+'\n')
-    #     f.write('FCOS:\n')
-    #     f.write(model["fcos"].__str__()+'\n')
 
-    output_dir = cfg.OUTPUT_DIR
+
+
     checkpointer = DetectronCheckpointer(cfg, model,)
 
     _ = checkpointer.load(f=os.path.join(output_dir,cfg.MODEL.WEIGHT), load_dis=False, load_opt_sch=False)
 
-    imgfiles = ['E:/SeaShips_SMD/JPEGImages/000001.jpg', 'E:/SeaShips_SMD/JPEGImagesAug/F000001.jpg',
-                'E:/SeaShips_SMD/JPEGImagesAug/R000001.jpg']
-    imgfilea = 'E:/SeaShips_SMD/JPEGImagesAug/000001.jpg'
-    xmlfile = 'E:/SeaShips_SMD/Annotations/000001.xml'
-    batch = dataBlobAug(imgfiles, xmlfile)
-    images, targets = batch  # images:(1,3,608,1088), targets:(600,1066)
-    images = images.to("cuda")
-    targets = [target.to("cuda") for target in targets]
-    # model_input = torch.rand((1, 3, 608, 1088), device="cuda")
-    timeList=[]
-    for i in range(20):
-        begin=time.time()
-        features = model["backbone"](images.tensors)
-        out = model["fcos"](images, features)
-        end=time.time()
-        #del features,out
-        timeList.append(images.tensors.shape[0]/(end-begin))
-        print(end-begin,images.tensors.shape)
-    print(timeList)
 
-    if False:
-        featureExtractor(cfg, model, comment=args.comment,useOneFile=True)#'feature'
+    featureExtractor(cfg, model, comment=args.comment,useBatchFile=True)#'feature'
 
     # write_graph(model, output_dir)
     # for k in model:

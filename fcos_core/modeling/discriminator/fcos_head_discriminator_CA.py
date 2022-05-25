@@ -67,7 +67,7 @@ class FCOSDiscriminator_CA(nn.Module):
         box_cls_map = maxpooling(box_cls_map)
 
         # Normalize the center-aware map
-        atten_map = (self.center_aware_weight * box_cls_map * centerness_map).sigmoid()#注意图
+        atten_map = (self.center_aware_weight * box_cls_map * centerness_map).sigmoid()#注意图 /
 
 
         # Compute loss

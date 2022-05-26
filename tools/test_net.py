@@ -20,12 +20,12 @@ from fcos_core.utils.collect_env import collect_env_info
 from fcos_core.utils.comm import synchronize, get_rank
 from fcos_core.utils.logger import setup_logger
 from fcos_core.utils.miscellaneous import mkdir
-
-#from tensorboardX import SummaryWriter
 from ForTest import testbbox
 import re
 from ast import literal_eval
 from torch.utils.tensorboard import SummaryWriter
+from fcos_core.modeling.backbone import build_backbone
+from fcos_core.modeling.rpn.rpn import build_rpn
 # def main():
 #     parser = argparse.ArgumentParser(description="PyTorch Object Detection Inference")
 #     parser.add_argument(
@@ -157,8 +157,7 @@ def main_testbbox():
 
     # model = build_detection_model(cfg)
     # model.to(cfg.MODEL.DEVICE)
-    from fcos_core.modeling.backbone import build_backbone
-    from fcos_core.modeling.rpn.rpn import build_rpn
+
     model = {}
     model["backbone"] = build_backbone(cfg).to(cfg.MODEL.DEVICE)
     model["fcos"] = build_rpn(cfg, model["backbone"].out_channels).to(cfg.MODEL.DEVICE)
@@ -196,12 +195,12 @@ def main_testbbox():
         save_dir = os.path.join(model_dir, 'inference' + numstr)
         # if not os.path.exists(save_dir):
         #     os.mkdir(save_dir)
-        logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank())
-        logger.info("Using {} GPUs".format(num_gpus))
-        logger.info(cfg)
-
-        logger.info("Collecting env info (might take some time)")
-        logger.info("\n" + collect_env_info())
+        # logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank())
+        # logger.info("Using {} GPUs".format(num_gpus))
+        # logger.info(cfg)
+        #
+        # logger.info("Collecting env info (might take some time)")
+        # logger.info("\n" + collect_env_info())
         logger.info("results will be saved in %s"%(save_dir))
 
         testResult=testbbox(cfg,model,numstr,flagVisual=args.flagVisual)# will call the model.eval()

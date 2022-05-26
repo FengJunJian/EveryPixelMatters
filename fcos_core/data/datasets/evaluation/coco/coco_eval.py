@@ -10,7 +10,8 @@ from fcos_core.structures.bounding_box import BoxList
 from fcos_core.structures.boxlist_ops import boxlist_iou
 import numpy as np
 import pickle as plk
-
+import json
+from collections import Counter
 def do_coco_evaluation(
     dataset,
     predictions,
@@ -51,44 +52,95 @@ def do_coco_evaluation(
         coco_results['keypoints'] = prepare_for_coco_keypoint(predictions, dataset)
 
     results = COCOResults(*iou_types)
-    pr = {}
+    pr_c = {}
     logger.info("Evaluating predictions")
+
     for iou_type in iou_types:
         with tempfile.NamedTemporaryFile() as f:
             file_path = f.name
             if output_folder:
                 file_path = os.path.join(output_folder, iou_type + ".json")
             res = evaluate_predictions_on_coco(
-                dataset.coco, coco_results[iou_type], file_path, iou_type
+                dataset.coco, coco_results[iou_type], file_path, iou_type#eval
             )
-            p_a1 = res.eval['precision'][0, :, 0, 0, 2]  # (T, R, K, A, M)
-            r_a1 = res.eval['recall'][0, 0, 0, 2]  # (T, K, A, M)
-            x = np.arange(0.0, 1.01, 0.01)
-            pr[iou_type] = {'precision': p_a1, 'recall': r_a1}
+            #coco_eval = res
+            if iou_type=="bbox":
+                dN = 0
+                GN = 0
+                TP = np.zeros_like(res.params.iouThrs)
+                for i in range(len(res.params.imgIds)):#all small, medium,large
+                                                    # [[0, 10000000000.0], [0, 1024], [1024, 9216], [9216, 10000000000.0]]
+                    # print(i)
+                    data = res.evalImgs[i]
+                    if data is None:
+                        continue
+                    dN += len(data['dtIds'])
+                    GN += len(data['gtIds'])
+                    dM = np.nonzero(data['dtMatches'])[0]  # 各阈值匹配多少个
+                    if len(dM) == 0:
+                        continue
+                    TPC = Counter(dM)  # 统计各阈值的TP
+                    inds = np.array(list(TPC.keys()))
+                    tps = np.array(list(TPC.values()))
+                    TP[inds] += tps
+                P = TP / dN
+                R = TP / GN
+                AP = np.mean(res.eval['precision'][:, :, :, 0, 2], (1, 2))  # all, maxDet
+                APs = np.mean(res.eval['precision'][:, :, :, 1, 2], (1, 2))  # all, maxDet
+                APm = np.mean(res.eval['precision'][:, :, :, 2, 2], (1, 2))  # all, maxDet
+                APl = np.mean(res.eval['precision'][:, :, :, 3, 2], (1, 2))  # all, maxDet
+                pr_c['P'] = P.tolist()
+                pr_c['R'] = R.tolist()
+                pr_c['AP'] = AP.tolist()
+                pr_c['APs'] = APs.tolist()
+                pr_c['APm'] = APm.tolist()
+                pr_c['APl'] = APl.tolist()
+                pr_c['iouThr']=res.params.iouThrs.tolist()
+            p_a1 = res.eval['precision'][:, :, :, 0, 2]  # (T, R, K, A, M)
+            r_a1 = res.eval['recall'][:, :, 0, 2]  # (T, K, A, M)
+            pr_c[iou_type+'pr'] = {'precision': p_a1.tolist(), 'recall': r_a1.tolist()}#pr曲线
             results.update(res)
     logger.info(results)
     check_expected_results(results, expected_results, expected_results_sigma_tol)
     if output_folder:
-        with open(os.path.join(output_folder,"coco_PR"),'wb') as f:
+        with open(os.path.join(output_folder,"coco_PR.pkl"),'wb') as f:
+            #if getattr(res.eval['params'],'__dict__',None):
+                #res.eval['params']=res.eval['params'].__dict__
             plk.dump(res.eval,f)
-        with open(os.path.join(output_folder,"coco_results.txt"),'w') as f:
-            recalls=np.mean(res.eval['recall'][0,:,:,:],axis=0)#@.5 mean classes
-            for k,v in results.results.items():
-                if isinstance(v,dict):
-                    for k1,v1 in v.items():
-                        f.write(str(k1)+'\t'+str(v1)+'\n')
-            f.write('Recall@.5:(all,small,medium,large)|(1,10,100)\n')#recall      = -np.ones((T,K,A,M))
+
+        inds_5=np.where(res.params.iouThrs==0.5)[0]
+        with open(os.path.join(output_folder,"coco_results.json"),'w') as f:
+
+            aps = np.mean(res.eval['precision'][inds_5, :, :, 1, 2], (0, 1, 2))  # all, maxDet
+            apm = np.mean(res.eval['precision'][inds_5, :, :, 2, 2], (0, 1, 2))  # all, maxDet
+            apl = np.mean(res.eval['precision'][inds_5, :, :, 3, 2], (0, 1, 2))
+            ap50={"APs50": aps, "APm50": apm, "APl50": apl}
+            results.results[res.params.iouType].update(ap50)
+            metric1=dict(results.results.items())
+
+            # "APs50", "APm50", "APl50"
+            # for k,v in results.results.items():
+            #     if isinstance(v,dict):
+            #         for k1,v1 in v.items():
+            #             f.write(str(k1)+'\t'+str(v1)+'\n')
+            metric1.update(pr_c)
+            json.dump(metric1, f)
+            #recalls = np.mean(res.eval['recall'][inds_5, :, :, 2], axis=(0, 1))  # @.5 mean classes maxDet
+            #precision =
+            #f.write('Recall@.5:(all,small,medium,large)|(100)\n')#recall      = -np.ones((T,K,A,M))
             # self.maxDets = [1, 10, 100]
             # self.areaRng = [[0 ** 2, 1e5 ** 2], [0 ** 2, 32 ** 2], [32 ** 2, 96 ** 2], [96 ** 2, 1e5 ** 2]]
             # self.areaRngLbl = ['all', 'small', 'medium', 'large']
-            for r in recalls:
-                f.write(str(r) + '\n')
-            f.write('\n')
-        for iou_type in iou_types:
-            with open(os.path.join(output_folder,iou_type+"PR.txt"),'w') as f:
-                for d1,d2 in zip(x,p_a1):
-                    f.write(str(d1)+'\t'+str(d2)+'\n')
-        torch.save(results, os.path.join(output_folder, "coco_results.pth"))
+            # for r in recalls:
+            #     f.write(str(r) + '\n')
+            # f.write('Precision@.5:(all,small,medium,large)|(100)\n')  # recall      = -np.ones((T,K,A,M))
+            # f.write('\n')
+        # rx = np.arange(0.0, 1.01, 0.01)
+        # for iou_type in iou_types:
+        #     with open(os.path.join(output_folder,iou_type+"PR.txt"),'w') as f:
+        #         for d1,d2 in zip(rx,np.mean(p_a1[inds_5],(0,2))):
+        #             f.write(str(d1)+'\t'+str(d2)+'\n')
+        #torch.save(results, os.path.join(output_folder, "coco_results.pth"))
     return results, coco_results,res
 
 
@@ -338,13 +390,22 @@ def evaluate_predictions_on_coco(
     from pycocotools.coco import COCO
     from pycocotools.cocoeval import COCOeval
 
-    coco_dt = coco_gt.loadRes(str(json_result_file)) if coco_results else COCO()
+    coco_dt = coco_gt.loadRes(str(json_result_file)) if coco_results else COCO()#predictions
 
     # coco_dt = coco_gt.loadRes(coco_results)
     coco_eval = COCOeval(coco_gt, coco_dt, iou_type)
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
+    coco_eval.evaluate()#对给定图像运行每个图像评估并将结果（字典列表）存储在 self.evalImgs, 可推理TP, TN, FP, FN
+    #self.evalImgs.dtm ,  self.evalImgs.gtm :用于计算Precision=TP/(detections:TP+FP) Recall=TP/(GT:TP+FN)
+    # self.evalImgs = [evaluateImg(imgId, catId, areaRng, maxDet)
+    #                  for catId in catIds
+    #                  for areaRng in p.areaRng
+    #                  for imgId in p.imgIds
+    # self.evalImgs.keys(): dict_keys(['image_id', 'category_id', 'aRng', 'maxDet',
+    #                                  'dtIds', 'gtIds', 'dtMatches', 'gtMatches',
+    #                                  'dtScores', 'gtIgnore', 'dtIgnore'])
+
+    coco_eval.accumulate()#累积每张图像评估结果并将结果存储在 self.eval 中
+    coco_eval.summarize()#计算并显示评估结果的汇总指标。
 
     compute_thresholds_for_classes(coco_eval)
 
@@ -382,7 +443,7 @@ def compute_thresholds_for_classes(coco_eval):
 
 class COCOResults(object):
     METRICS = {
-        "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl"],
+        "bbox": ["AP", "AP50", "AP75", "APs", "APm", "APl",],
         "segm": ["AP", "AP50", "AP75", "APs", "APm", "APl"],
         "box_proposal": [
             "AR@100",

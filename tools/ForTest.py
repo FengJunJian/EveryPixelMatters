@@ -16,7 +16,7 @@ from tqdm import tqdm
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from fcos_core.data.datasets.evaluation import evaluate
-
+from pprint import pprint
 def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
     if distributed:
         model = model.module
@@ -39,6 +39,10 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
         result=None
         if os.path.exists(os.path.join(output_folder, 'predictions.pth')):
             predictions=torch.load(os.path.join(output_folder, 'predictions.pth'))
+            #scoreThr=0.2
+
+            #
+            #predictions=[boxlist[torch.where(boxlist.extra_fields['scores']>scoreThr)[0]] for boxlist in predictions]
             extra_args = dict(
                 box_only=False if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
                 iou_types=iou_types,
@@ -47,8 +51,15 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
             )
 
             result=myeval(predictions, data_loader_val.dataset, output_folder, **extra_args)
-        else:
+            # results, coco_results, coco_eval, P, R, AP, APs, APm, APl
 
+            pprint(['P',result[3]])
+            pprint(['R', result[4]])
+            pprint(['AP', result[5]])
+            # pprint(['APs', result[6]])
+            # pprint(['APm', result[7]])
+            # pprint(['APl', result[8]])
+        else:
             result=inference(
             model,
             data_loader_val,
@@ -197,6 +208,7 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
 
 
 def myeval(predictions,dataset,output_folder,**extra_args):
+    #from collections import Counter
     import pickle as plk
     #
     assert len(extra_args['iou_types'])==1
@@ -208,31 +220,34 @@ def myeval(predictions,dataset,output_folder,**extra_args):
     savefile_path= os.path.join(output_folder, extra_args['iou_types'][0] + ".json")
     with open(savefile_path, "w") as f:
         json.dump(coco_boxes, f)
-    coco_dt = dataset.coco.loadRes(str(savefile_path)) if savefile_path else COCO()
-    coco_gt=dataset.coco
+    # coco_dt = dataset.coco.loadRes(str(savefile_path)) if savefile_path else COCO()
+    # coco_gt=dataset.coco
     # coco_eval = COCOeval(coco_gt, coco_dt, extra_args['iou_types'][0])
     # coco_eval.evaluate()
     # coco_eval.accumulate()
     # coco_eval.summarize()
-    #p_a1 = coco_eval.eval['precision'][0, :, 0, 0, 2]  # (T, R, K, A, M)
-    #r_a1 = coco_eval.eval['recall'][0, 0, 0, 2]  # (T, K, A, M)
-    # pr_array2 = res.eval['precision'][2, :, 0, 0, 2]
-    # pr_array3 = res.eval['precision'][4, :, 0, 0, 2]
-    #r_a1 = np.arange(0.0, 1.01, 0.01)
-    #pr_c=[]
-    pr_c={'total':coco_eval.eval}
-    for catId in coco_gt.getCatIds():#各类AP
-        coco_eval_c = COCOeval(coco_gt, coco_dt, extra_args['iou_types'][0])
-        coco_eval_c.params.catIds = [catId]
-        coco_eval_c.evaluate()
-        coco_eval_c.accumulate()
-        #coco_eval_c.summarize()
-        #pr_c.append(coco_eval_c.eval)
-        pr_c[catId]=coco_eval_c.eval
+    # pr_c={'total':coco_eval.eval}
 
-    if output_folder:
-        with open(os.path.join(output_folder,"coco_PR_all.pkl"),'wb') as f:
-            plk.dump(pr_c,f)
+    if False:# deprecated
+        for catId in coco_gt.getCatIds():#各类AP
+            coco_eval_c = COCOeval(coco_gt, coco_dt, extra_args['iou_types'][0])
+            coco_eval_c.params.catIds = [catId]
+            coco_eval_c.evaluate()#对给定图像运行每个图像评估并将结果（字典列表）存储在 self.evalImgs, 可推理TP, TN, FP, FN
+            #self.evalImgs.dtm ,  self.evalImgs.gtm :用于计算Precision=TP/(detections:TP+FP) Recall=TP/(GT:TP+FN)
+            # self.evalImgs = [evaluateImg(imgId, catId, areaRng, maxDet)
+            #                  for catId in catIds
+            #                  for areaRng in p.areaRng
+            #                  for imgId in p.imgIds
+            # self.evalImgs.keys(): dict_keys(['image_id', 'category_id', 'aRng', 'maxDet',
+            #                                  'dtIds', 'gtIds', 'dtMatches', 'gtMatches',
+            #                                  'dtScores', 'gtIgnore', 'dtIgnore'])
+            coco_eval_c.accumulate()
+            #coco_eval_c.summarize()
+            pr_c[catId]=coco_eval_c.eval
+            #['precision'](p,r,class,area:['all', 'small', 'medium', 'large'] ,numDet)
+    # if output_folder:
+    #     with open(os.path.join(output_folder,"coco_PR_all.pkl"),'wb') as f:
+    #         plk.dump(pr_c,f)
         # with open(os.path.join(output_folder,"coco_results.txt"),'w') as f:
         #     for k,v in results.results.items():
         #         if isinstance(v,dict):
@@ -248,8 +263,8 @@ def myeval(predictions,dataset,output_folder,**extra_args):
     # T = len(p.iouThrs)
     # R = len(p.recThrs)
     # K = len(p.catIds) if p.useCats else 1
-    # A = len(p.areaRng)
-    # M = len(p.maxDets)
+    # A = len(p.areaRng)['all', 'small', 'medium', 'large']
+    # M = len(p.maxDets) #[1,10,100]
     # precision = -np.ones((T, R, K, A, M))  # -1 for the precision of absent categories
     # recall = -np.ones((T, K, A, M))#(iouThrs,catIds,areaRng,maxDets)
     # scores = -np.ones((T, R, K, A, M))
@@ -267,7 +282,6 @@ def myeval(predictions,dataset,output_folder,**extra_args):
     #  iouType    - ['segm'] set iouType to 'segm', 'bbox' or 'keypoints'
     #  iouType replaced the now DEPRECATED useSegm parameter.
     #  useCats    - [1] if true use category labels for evaluation
-
     results = COCOResults((extra_args['iou_types'][0]))
     results.update(coco_eval)
     return results,coco_results,coco_eval

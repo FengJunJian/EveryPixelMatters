@@ -60,7 +60,7 @@ def do_coco_evaluation(
             file_path = f.name
             if output_folder:
                 file_path = os.path.join(output_folder, iou_type + ".json")
-            res = evaluate_predictions_on_coco(
+            res,f_measure = evaluate_predictions_on_coco(
                 dataset.coco, coco_results[iou_type], file_path, iou_type#eval
             )
             #coco_eval = res
@@ -95,7 +95,9 @@ def do_coco_evaluation(
                 pr_c['APs'] = APs.tolist()
                 pr_c['APm'] = APm.tolist()
                 pr_c['APl'] = APl.tolist()
+                pr_c['f_measure'] = f_measure
                 pr_c['iouThr']=res.params.iouThrs.tolist()
+
             p_a1 = res.eval['precision'][:, :, :, 0, 2]  # (T, R, K, A, M)
             r_a1 = res.eval['recall'][:, :, 0, 2]  # (T, K, A, M)
             pr_c[iou_type+'pr'] = {'precision': p_a1.tolist(), 'recall': r_a1.tolist()}#pr曲线
@@ -141,7 +143,7 @@ def do_coco_evaluation(
         #         for d1,d2 in zip(rx,np.mean(p_a1[inds_5],(0,2))):
         #             f.write(str(d1)+'\t'+str(d2)+'\n')
         #torch.save(results, os.path.join(output_folder, "coco_results.pth"))
-    return results, coco_results,res
+    return results, coco_results,res ,pr_c
 
 
 def prepare_for_coco_detection(predictions, dataset):
@@ -407,9 +409,9 @@ def evaluate_predictions_on_coco(
     coco_eval.accumulate()#累积每张图像评估结果并将结果存储在 self.eval 中
     coco_eval.summarize()#计算并显示评估结果的汇总指标。
 
-    compute_thresholds_for_classes(coco_eval)
+    f_measure=compute_thresholds_for_classes(coco_eval)
 
-    return coco_eval
+    return coco_eval,f_measure
 
 
 def compute_thresholds_for_classes(coco_eval):
@@ -439,7 +441,7 @@ def compute_thresholds_for_classes(coco_eval):
     print(list(max_f_measure))
     print("Score thresholds for classes (used in demos for visualization purposes):")
     print(list(scores))
-
+    return {'max_f_measure':list(max_f_measure),'Thscores':list(scores)}
 
 class COCOResults(object):
     METRICS = {

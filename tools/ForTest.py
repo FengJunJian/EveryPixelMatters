@@ -17,6 +17,8 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from fcos_core.data.datasets.evaluation import evaluate
 from pprint import pprint
+from PIL import Image,ImageFont,ImageDraw
+
 def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
     if distributed:
         model = model.module
@@ -39,10 +41,9 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
         result=None
         if os.path.exists(os.path.join(output_folder, 'predictions.pth')):
             predictions=torch.load(os.path.join(output_folder, 'predictions.pth'))
-            #scoreThr=0.2
-
             #
-            #predictions=[boxlist[torch.where(boxlist.extra_fields['scores']>scoreThr)[0]] for boxlist in predictions]
+            # predictions=[boxlist[torch.where(boxlist.extra_fields['scores']>scoreThr)[0]] for boxlist in predictions]
+
             extra_args = dict(
                 box_only=False if cfg.MODEL.FCOS_ON or cfg.MODEL.RETINANET_ON else cfg.MODEL.RPN_ONLY,
                 iou_types=iou_types,
@@ -51,11 +52,16 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
             )
 
             result=myeval(predictions, data_loader_val.dataset, output_folder, **extra_args)
-            # results, coco_results, coco_eval, P, R, AP, APs, APm, APl
-
-            pprint(['P',result[3]])
-            pprint(['R', result[4]])
-            pprint(['AP', result[5]])
+            # results, coco_results, coco_eval, AP_P_R
+            # pprint(['AP', result[3]['AP']])
+            # pprint(['P', result[3]['P']])
+            # pprint(['R', result[3]['R']])
+            Thscores=result[3]['f_measure']['Thscores'][0]#0.219
+            predictions = [boxlist[torch.where(boxlist.extra_fields['scores'] > Thscores)[0]] for boxlist in
+                           predictions]
+            foutput_folder=output_folder+'_f'
+            mkdir(foutput_folder)
+            result = myeval(predictions, data_loader_val.dataset, foutput_folder, **extra_args)
             # pprint(['APs', result[6]])
             # pprint(['APm', result[7]])
             # pprint(['APl', result[8]])
@@ -82,6 +88,18 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
         synchronize()
     return results
 
+def cv2AddChineseText(img, text, position, textColor=(0, 255, 0), textSize=30):
+    if (isinstance(img, np.ndarray)):  # 判断是否OpenCV图片类型
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    # 创建一个可以在给定图像上绘图的对象
+    draw = ImageDraw.Draw(img)
+    # 字体的格式
+    fontStyle = ImageFont.truetype(
+        "simsun.ttc", textSize, encoding="utf-8")
+    # 绘制文本
+    draw.text(position, text, textColor, font=fontStyle)
+    # 转换回OpenCV格式
+    return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
 
 def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,showScore=False):#threshold=0.1,iou_type="bbox"
     #num_color = cfg.MODEL.ROI_BOX_HEAD.NUM_CLASSES
@@ -95,7 +113,12 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
     CLASS_NAMES=[None]*num_color#cfg.MODEL.ROI_BOX_HEAD.NUM_CLASSES
     CLASS_NAMES[0]='__background__'
     for k,v in dataset.coco.cats.items():
-        CLASS_NAMES[k]=v['name']
+        if k>0:
+            name='水面目标'
+        else:
+            name='__background__'
+        #CLASS_NAMES[k]=v['name']
+        CLASS_NAMES[k] = name
 
     def write_detection(im, dets,thiness=5,GT_color=None,show_score=False):
         '''
@@ -106,8 +129,8 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
             rectangle_tmp = im.copy()
             bbox = dets[i, :4].astype(np.int32)
             class_ind = int(dets[i, 4])
-            if class_ind==7:#ignore flying
-                continue
+            # if class_ind==7:#ignore flying
+            #     continue
             # score = dets[i, -1]
             if GT_color:
                 color=GT_color
@@ -186,8 +209,8 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
         horizonLineT=round(horizonLineT)
         horizonLineB = round(horizonLineB)
         horizonLine = round(horizonLine)
-        im = cv2.line(im, (0, horizonLine), (im.shape[1] - 1, horizonLine), (0, 0, 255), 2)
-        im = cv2.line(im, (0, horizonLineT), (im.shape[1] - 1, horizonLineT), (0, 255, 255), 2)
+        # im = cv2.line(im, (0, horizonLine), (im.shape[1] - 1, horizonLine), (0, 0, 255), 2)
+        # im = cv2.line(im, (0, horizonLineT), (im.shape[1] - 1, horizonLineT), (0, 255, 255), 2)#水平线
         # cv2.imshow('b',imgT)
         # cv2.waitKey()
         ymaxs=dets[:,3]
@@ -209,10 +232,10 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
 
 def myeval(predictions,dataset,output_folder,**extra_args):
     #from collections import Counter
-    import pickle as plk
+    #import pickle as plk
     #
     assert len(extra_args['iou_types'])==1
-    results, coco_results,coco_eval=evaluate(dataset=dataset,
+    results, coco_results,coco_eval,pr_c=evaluate(dataset=dataset,
              predictions=predictions,
              output_folder=output_folder,
              **extra_args)
@@ -282,6 +305,6 @@ def myeval(predictions,dataset,output_folder,**extra_args):
     #  iouType    - ['segm'] set iouType to 'segm', 'bbox' or 'keypoints'
     #  iouType replaced the now DEPRECATED useSegm parameter.
     #  useCats    - [1] if true use category labels for evaluation
-    results = COCOResults((extra_args['iou_types'][0]))
-    results.update(coco_eval)
-    return results,coco_results,coco_eval
+    # results = COCOResults((extra_args['iou_types'][0]))
+    # results.update(coco_eval)
+    return results,coco_results,coco_eval,pr_c

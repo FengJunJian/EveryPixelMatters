@@ -4,14 +4,15 @@ import os
 import torch
 from collections import OrderedDict
 from tqdm import tqdm
-
-from fcos_core.modeling.roi_heads.mask_head.inference import Masker
-from fcos_core.structures.bounding_box import BoxList
-from fcos_core.structures.boxlist_ops import boxlist_iou
 import numpy as np
 import pickle as plk
 import json
 from collections import Counter
+
+from fcos_core.modeling.roi_heads.mask_head.inference import Masker
+from fcos_core.structures.bounding_box import BoxList
+from fcos_core.structures.boxlist_ops import boxlist_iou
+
 def do_coco_evaluation(
     dataset,
     predictions,
@@ -106,8 +107,6 @@ def do_coco_evaluation(
     check_expected_results(results, expected_results, expected_results_sigma_tol)
     if output_folder:
         with open(os.path.join(output_folder,"coco_PR.pkl"),'wb') as f:
-            #if getattr(res.eval['params'],'__dict__',None):
-                #res.eval['params']=res.eval['params'].__dict__
             plk.dump(res.eval,f)
 
         inds_5=np.where(res.params.iouThrs==0.5)[0]
@@ -412,7 +411,6 @@ def evaluate_predictions_on_coco(
     f_measure=compute_thresholds_for_classes(coco_eval)
 
     return coco_eval,f_measure
-
 
 def compute_thresholds_for_classes(coco_eval):
     '''

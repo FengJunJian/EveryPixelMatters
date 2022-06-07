@@ -2,7 +2,9 @@ from fcos_core.structures.image_list import to_image_list
 from fcos_core.modeling.poolers import Pooler
 from fcos_core.config import cfg
 from fcos_core.utils.miscellaneous import mkdir
-from torchvision.ops import MultiScaleRoIAlign
+from torchvision.ops import MultiScaleRoIAlign,box_iou
+from fcos_core.structures.boxlist_ops import boxlist_nms
+
 import torch
 import cv2
 import numpy as np
@@ -51,6 +53,100 @@ def foward_detector(model, images, targets=None, return_maps=False):
         result = proposals
         return result
 
+def foward_detector_roifeature_fb(model, images, targets=None, return_maps=False,saveFolder='',imgnnames=None):
+    # assert len(imgnnames)==1
+    # imgname=imgnnames[0]
+    oh,ow=images.tensors.shape[2:]
+    #rh,rw=images.image_sizes[0]
+    image_sizes = images.image_sizes
+    map_layer_to_index = {"P3": 0, "P4": 1, "P5": 2, "P6": 3, "P7": 4}
+    feature_layers = map_layer_to_index.keys()
+
+    model_backbone = model["backbone"]
+    model_fcos = model["fcos"]
+
+    # images = to_image_list(images)
+    features = model_backbone(images.tensors)
+    boxes, score_maps = model_fcos.featureROI(images, features, targets=targets, return_maps=return_maps)
+    bc = score_maps['box_cls']
+    cen = score_maps['centerness']
+
+    f = {
+        layer: features[map_layer_to_index[layer]]
+        for layer in feature_layers
+    }
+    fea_list=[]
+    for i,imgname in enumerate(imgnnames):
+
+        # bcn = bc[0][i, 0].cpu().detach().numpy()
+        # bcnN = cv2.normalize(bcn, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        # bcnNM = cv2.applyColorMap(bcnN, cv2.COLORMAP_JET)  # 变成伪彩图
+        # #cv2.imshow('bcnNM', bcnNM)  # 变成伪彩图
+        # cv2.imwrite(os.path.join(saveFolder, 'b' + imgname), bcnNM)  # 变成伪彩图
+        #
+        # cenn = cen[0][i, 0].cpu().detach().numpy()
+        # cennN = cv2.normalize(cenn, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        # cennNM = cv2.applyColorMap(cennN, cv2.COLORMAP_JET)  # 变成伪彩图
+        # #cv2.imshow('cennNM', cennNM)  # 变成伪彩图
+        # cv2.imwrite(os.path.join(saveFolder, 'c' + imgname), cennNM)  # 变成伪彩图
+        # # bce = bc[0] * cen[0]
+        # # bcen = bce[0, 0].cpu().detach().numpy()
+        # bcen = bcnN.astype(np.float32) * cennN.astype(np.float32)
+        # bcenN = cv2.normalize(bcen, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        # bcenNM = cv2.applyColorMap(bcenN, cv2.COLORMAP_JET)  # 变成伪彩图
+        # #cv2.imshow('bcenNM2', bcenNM)  # 变成伪彩图
+        # cv2.imwrite(os.path.join(saveFolder,'bc'+imgname), bcenNM)  # 变成伪彩图
+        #
+        # fn=torch.mean(features[0],dim=1)[i].cpu().detach().numpy()#cen[0]
+        # fnN = cv2.normalize(fn, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        # fnNM = cv2.applyColorMap(fnN, cv2.COLORMAP_JET)  # 变成伪彩图
+        # #cv2.imshow('fnNM', fnNM)  # 变成伪彩图
+        # cv2.imwrite(os.path.join(saveFolder, 'f' + imgname), fnNM)  # 变成伪彩图
+        #
+        # fcn = fnN.astype(np.float32) * cennN.astype(np.float32)
+        # fcnN = cv2.normalize(fcn, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        # fcnNM = cv2.applyColorMap(fcnN, cv2.COLORMAP_JET)  # 变成伪彩
+        # #cv2.imshow('fcnNM', fcnNM)  # 变成伪彩图
+        # cv2.imwrite(os.path.join(saveFolder, 'fc' + imgname), fcnNM)  # 变成伪彩图
+        #
+        # cv2.waitKey(1)
+
+        ######################################################
+        output_size = [8, 16]
+        RoIpooler = MultiScaleRoIAlign(featmap_names=feature_layers, output_size=output_size, sampling_ratio=0)
+        bboxes = [b.bbox for b in targets]
+        # fg_num_boxes=0
+        fg_num_boxes =sum([len(b) for b in bboxes])
+        bg_num_boxes=0
+        if fg_num_boxes>0:
+            iou=box_iou(bboxes[i],boxes[i].bbox)
+            _,boxeskeeps=torch.where(iou<=0.01)#无iou交集为bg
+            inds=torch.randperm(len(boxeskeeps))
+            boxes_bg=[]
+            bgboxes=boxes[i][boxeskeeps[inds[:fg_num_boxes * 2]]]
+            boxes_bg.append(bgboxes)
+            # for b in boxes:
+            #     bg_inds=torch.where(b.get_field('scores') < 0.1)[0]
+            #     boxes_bg.append(b[bg_inds])
+            bg_num_boxes+=len(bgboxes)
+            bboxes+=[b.bbox for b in boxes_bg]
+        pooledfeatures = RoIpooler(f, bboxes, image_sizes)
+
+        if len(pooledfeatures)==0:
+            #return fea_list
+            fea_list.append(None)
+        else:
+            pi = pooledfeatures.cpu().detach().numpy()  # for p0
+            # if len(pooledfeatures)>2:
+            #     print(pooledfeatures.shape)
+            #print('fg:',fg_num_boxes,'bg:',bg_num_boxes,'fea shape:',pi.shape)
+
+            fea_dict={}
+            fea_dict['fg']=pi[:fg_num_boxes].mean(1)
+            fea_dict['bg']=pi[fg_num_boxes:].mean(1)
+            fea_list.append(fea_dict)
+
+    return fea_list
 
 def foward_detector_roifeature(model, images, targets=None, return_maps=False,saveFolder='',imgnnames=None):
     oh,ow=images.tensors.shape[2:]
@@ -180,6 +276,7 @@ def foward_detector_roifeature_one(model, images, targets=None, return_maps=Fals
     RoIpooler=MultiScaleRoIAlign(featmap_names=feature_layers,output_size=output_size,sampling_ratio=0)
     bboxes=[b.bbox for b in targets]
     num_boxes=len(bboxes[0])
+
     a=RoIpooler(f,bboxes,image_sizes)
     #b= pooler(features, targets)
     #a=a.mean(1)

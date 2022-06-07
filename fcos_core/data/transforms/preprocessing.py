@@ -1,12 +1,19 @@
 import cv2
 import numpy as np
-
+from PIL import Image
 def horizon_detect(img):
 
     if img is None:
         return 0,0,0
-
-    imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if isinstance(img,Image.Image):
+        #img=np.array(img)
+        imgray=np.array(img.convert('L'))
+    else:#default:cv2
+        if len(img.shape)==3:
+            imgray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        else:
+            imgray=img
+    #imgray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     imgray = cv2.GaussianBlur(imgray, (3, 3), 0, 0)
     thesd = 0.0
     Mkernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))

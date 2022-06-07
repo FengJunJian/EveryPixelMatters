@@ -174,7 +174,7 @@ class FCOSModule(torch.nn.Module):
             "box_regression": box_regression,
             "centerness": centerness
         }
-        boxes, temp1, temp2=self._forward_test(
+        boxes, _, _=self._forward_test(
             locations, box_cls, box_regression,
             centerness, images.image_sizes
         )

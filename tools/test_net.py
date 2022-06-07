@@ -134,7 +134,7 @@ def main_testbbox():
     distributed = num_gpus > 1
     print(args.opts)
     print(args.flagVisual)
-    time.sleep(2)
+    time.sleep(1)
     if distributed:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(
@@ -193,14 +193,6 @@ def main_testbbox():
         if len(regxint)>0:
             numstr=str(int(regxint[-1]))
         save_dir = os.path.join(model_dir, 'inference' + numstr)
-        # if not os.path.exists(save_dir):
-        #     os.mkdir(save_dir)
-        # logger = setup_logger("maskrcnn_benchmark", save_dir, get_rank())
-        # logger.info("Using {} GPUs".format(num_gpus))
-        # logger.info(cfg)
-        #
-        # logger.info("Collecting env info (might take some time)")
-        # logger.info("\n" + collect_env_info())
         logger.info("results will be saved in %s"%(save_dir))
 
         testResult=testbbox(cfg,model,numstr,flagVisual=args.flagVisual)# will call the model.eval()

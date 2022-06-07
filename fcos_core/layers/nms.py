@@ -4,5 +4,6 @@
 from torchvision import ops
 # nms = _C.nms
 nms=ops.nms
+
 # nms.__doc__ = """
 # This function performs Non-maximum suppresion"""

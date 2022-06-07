@@ -37,6 +37,7 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
             output_folders[idx] = output_folder
     data_loaders_val = make_data_loader(cfg, is_train=False, is_distributed=distributed)
     results=[]
+    Thscores = 0.5
     for output_folder, dataset_name, data_loader_val in zip(output_folders, dataset_names, data_loaders_val):
         result=None
         if os.path.exists(os.path.join(output_folder, 'predictions.pth')):
@@ -50,18 +51,19 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
                 expected_results=cfg.TEST.EXPECTED_RESULTS,
                 expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
             )
-
+            # predictions = [boxlist[torch.where(boxlist.extra_fields['scores'] > Thscores)[0]] for boxlist in
+            #                predictions]
             result=myeval(predictions, data_loader_val.dataset, output_folder, **extra_args)
             # results, coco_results, coco_eval, AP_P_R
             # pprint(['AP', result[3]['AP']])
             # pprint(['P', result[3]['P']])
             # pprint(['R', result[3]['R']])
             Thscores=result[3]['f_measure']['Thscores'][0]#0.219
-            predictions = [boxlist[torch.where(boxlist.extra_fields['scores'] > Thscores)[0]] for boxlist in
-                           predictions]
-            foutput_folder=output_folder+'_f'
-            mkdir(foutput_folder)
-            result = myeval(predictions, data_loader_val.dataset, foutput_folder, **extra_args)
+            # predictions = [boxlist[torch.where(boxlist.extra_fields['scores'] > Thscores)[0]] for boxlist in
+            #                predictions]
+            # foutput_folder=output_folder+'_f'
+            # mkdir(foutput_folder)
+            # result = myeval(predictions, data_loader_val.dataset, foutput_folder, **extra_args)
             # pprint(['APs', result[6]])
             # pprint(['APm', result[7]])
             # pprint(['APl', result[8]])
@@ -77,14 +79,15 @@ def testbbox(cfg, model, numstr='', distributed=False,flagVisual=False):
             expected_results_sigma_tol=cfg.TEST.EXPECTED_RESULTS_SIGMA_TOL,
             output_folder=output_folder,
         )
+            Thscores = result[3]['f_measure']['Thscores'][0]  # 0.219
         results.append(result)
-
+        print('Score Threshold:',Thscores)
         if flagVisual:
             predictions = torch.load(os.path.join(output_folder, 'predictions.pth'))
-            saveImgPath = os.path.join(output_folder, 'imgS')
+            saveImgPath = os.path.join(output_folder, 'img')
             if not os.path.exists(saveImgPath):
                 os.mkdir(saveImgPath)
-            visualization(predictions, data_loader_val.dataset, saveImgPath,cfg.MODEL.FCOS.NUM_CLASSES, 0.7,showScore=True)
+            visualization(predictions, data_loader_val.dataset, saveImgPath,cfg.MODEL.FCOS.NUM_CLASSES, Thscores,showScore=False)
         synchronize()
     return results
 
@@ -102,6 +105,54 @@ def cv2AddChineseText(img, text, position, textColor=(0, 255, 0), textSize=30):
     return cv2.cvtColor(np.asarray(img), cv2.COLOR_RGB2BGR)
 
 def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,showScore=False):#threshold=0.1,iou_type="bbox"
+    def write_detection(im, dets, thiness=5, GT_color=None, show_score=False):
+        '''
+        dets:xmin,ymin,xmax,ymax,score
+        '''
+        H, W, C = im.shape
+        for i in range(len(dets)):
+            rectangle_tmp = im.copy()
+            bbox = dets[i, :4].astype(np.int32)
+            class_ind = int(dets[i, 4])
+            # if class_ind==7:#ignore flying
+            #     continue
+            # score = dets[i, -1]
+            if GT_color:
+                color = GT_color
+            else:
+                color = colors[class_ind]
+
+            string = CLASS_NAMES[class_ind]
+            if show_score:
+                string += '%.3f' % (dets[i, 5])
+
+            # string = '%s' % (CLASSES[class_ind])
+            fontFace = cv2.FONT_HERSHEY_COMPLEX
+            fontScale = 1.5
+            # thiness = 2
+
+            text_size, baseline = cv2.getTextSize(string, fontFace, fontScale, thiness)
+            text_origin = (bbox[0] - 1, bbox[1])  # - text_size[1]
+            ###########################################putText
+            p1 = [text_origin[0] - 1, text_origin[1] + 1]
+            p2 = [text_origin[0] + text_size[0] + 1, text_origin[1] - text_size[1] - 2]
+            if p2[0] > W:
+                dw = p2[0] - W
+                p2[0] -= dw
+                p1[0] -= dw
+
+            rectangle_tmp = cv2.rectangle(rectangle_tmp, (p1[0], p1[1]),
+                                          (p2[0], p2[1]),
+                                          color, cv2.FILLED)
+            cv2.addWeighted(im, 0.7, rectangle_tmp, 0.3, 0, im)
+            im = cv2.rectangle(im, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, thiness)
+            # imt=im.copy()
+            im = cv2AddChineseText(im, string, (p1[0] + 1, p2[1] - 1), (0, 0, 0), )
+            # cv2.imshow('a',imt)
+            # cv2.waitKey()
+            # im = cv2.putText(im, string, (p1[0]+1,p1[1]-1),
+            #                  fontFace, fontScale, (0, 0, 0), thiness,lineType=-1)
+        return im
     #num_color = cfg.MODEL.ROI_BOX_HEAD.NUM_CLASSES
     hsv_tuples = [(x / num_color, 1., 1.)
                   for x in range(num_color)]
@@ -120,53 +171,7 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
         #CLASS_NAMES[k]=v['name']
         CLASS_NAMES[k] = name
 
-    def write_detection(im, dets,thiness=5,GT_color=None,show_score=False):
-        '''
-        dets:xmin,ymin,xmax,ymax,score
-        '''
-        H,W,C=im.shape
-        for i in range(len(dets)):
-            rectangle_tmp = im.copy()
-            bbox = dets[i, :4].astype(np.int32)
-            class_ind = int(dets[i, 4])
-            # if class_ind==7:#ignore flying
-            #     continue
-            # score = dets[i, -1]
-            if GT_color:
-                color=GT_color
-            else:
-                color=colors[class_ind]
-
-            string = CLASS_NAMES[class_ind]
-            if show_score:
-                string+='%.4f'%(dets[i,5])
-
-            # string = '%s' % (CLASSES[class_ind])
-            fontFace = cv2.FONT_HERSHEY_COMPLEX
-            fontScale = 1.5
-            # thiness = 2
-
-            text_size, baseline = cv2.getTextSize(string, fontFace, fontScale, thiness)
-            text_origin = (bbox[0]-1, bbox[1])  # - text_size[1]
-        ###########################################putText
-            p1=[text_origin[0] - 1, text_origin[1] + 1]
-            p2=[text_origin[0] + text_size[0] + 1,text_origin[1] - text_size[1] - 2]
-            if p2[0]>W:
-                dw=p2[0]-W
-                p2[0]-=dw
-                p1[0]-=dw
-
-            rectangle_tmp=cv2.rectangle(rectangle_tmp, (p1[0], p1[1]),
-                               (p2[0], p2[1]),
-                               color, cv2.FILLED)
-            cv2.addWeighted(im, 0.7, rectangle_tmp, 0.3, 0, im)
-            im = cv2.rectangle(im, (bbox[0], bbox[1]), (bbox[2], bbox[3]), color, thiness)
-            im = cv2.putText(im, string, (p1[0]+1,p1[1]-1),
-                             fontFace, fontScale, (0, 0, 0), thiness,lineType=-1)
-        return im
-    #coco_results = []
     Imgroot=dataset.root
-
     for image_id, prediction in enumerate(tqdm(predictions)):
 
         if len(prediction) == 0:
@@ -209,14 +214,12 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
         horizonLineT=round(horizonLineT)
         horizonLineB = round(horizonLineB)
         horizonLine = round(horizonLine)
-        # im = cv2.line(im, (0, horizonLine), (im.shape[1] - 1, horizonLine), (0, 0, 255), 2)
+        im = cv2.line(im, (0, int(horizonLine)), (im.shape[1] - 1, int(horizonLine)), (0, 0, 255), 2)
         # im = cv2.line(im, (0, horizonLineT), (im.shape[1] - 1, horizonLineT), (0, 255, 255), 2)#水平线
         # cv2.imshow('b',imgT)
         # cv2.waitKey()
-        ymaxs=dets[:,3]
-        yinds=np.where(ymaxs-horizonLineT>0)[0]
-        # if len(yinds)<len(ymins):
-        #     print(image_path)
+        ymeans=(dets[:,3]+dets[:,1])/2
+        yinds=np.where(ymeans-horizonLineT>=0)[0]
         dets = dets[yinds, :]
 
         inds = np.where(dets[:, 4] > 0)[0]  # label>0
@@ -232,8 +235,6 @@ def visualization(predictions,dataset,output_folder,num_color,threshold=0.5,show
 
 def myeval(predictions,dataset,output_folder,**extra_args):
     #from collections import Counter
-    #import pickle as plk
-    #
     assert len(extra_args['iou_types'])==1
     results, coco_results,coco_eval,pr_c=evaluate(dataset=dataset,
              predictions=predictions,

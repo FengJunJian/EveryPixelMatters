@@ -63,7 +63,7 @@ class FCOSPostProcessor(torch.nn.Module):
         centerness = centerness.view(N, 1, H, W).permute(0, 2, 3, 1)
         centerness = centerness.reshape(N, -1).sigmoid()
 
-        candidate_inds = box_cls > self.pre_nms_thresh
+        candidate_inds = box_cls > self.pre_nms_thresh#MODEL.FCOS.INFERENCE_TH = 0.05
         pre_nms_top_n = candidate_inds.view(N, -1).sum(1)
         pre_nms_top_n = pre_nms_top_n.clamp(max=self.pre_nms_top_n)
 

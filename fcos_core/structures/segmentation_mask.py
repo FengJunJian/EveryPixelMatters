@@ -432,6 +432,31 @@ class PolygonList(object):
         s += "image_height={})".format(self.size[1])
         return s
 
+def mask2polygons(masks):
+    segs = []
+    for mask in masks:
+        if isinstance(mask, torch.Tensor):
+            mask = mask.numpy()
+        mask = np.asfortranarray(mask)
+        rles = mask_utils.encode(mask)
+        bbox = mask_utils.toBbox(rles)#[xmin,ymin,w,h]
+
+        seg = []
+        # bbox[] is x,y,w,h
+        # left_top
+        seg.append(bbox[0])
+        seg.append(bbox[1])
+        # left_bottom
+        seg.append(bbox[0])
+        seg.append(bbox[1] + bbox[3])
+        # right_bottom
+        seg.append(bbox[0] + bbox[2])
+        seg.append(bbox[1] + bbox[3])
+        # right_top
+        seg.append(bbox[0] + bbox[2])
+        seg.append(bbox[1])
+        segs.append([seg])#[seg]
+    return segs
 
 class SegmentationMask(object):
 

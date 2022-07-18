@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.autograd import Function
 from torch.autograd.function import once_differentiable
-
+from torchvision.ops import sigmoid_focal_loss
 # from fcos_core import _C
 from torchvision import ops
 # TODO: Use JIT to replace CUDA implementation in the future.

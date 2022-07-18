@@ -23,6 +23,8 @@ import cv2
 import numpy as np
 import xml.etree.ElementTree as ET
 from torch.utils.tensorboard import SummaryWriter
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 #from fcos_core.modeling.detector import build_detection_model
 import time
 
@@ -329,10 +331,19 @@ def visualDifferBackground(path):
     #diffpArr=diffpArr.mean(0)
     diffpArr=diffpArr.mean(0)
     diffpN = cv2.normalize(diffpArr, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+    cv2.imwrite('diffpN.jpg',diffpN)
     diffpM = cv2.applyColorMap(diffpN, cv2.COLORMAP_JET)  # 变成伪彩图
+    #plt.imshow(diffpM[:,:,::-1],cmap=cm.hot)
+    pltim=plt.imshow(diffpN, cmap=cm.jet)
+    plt.xticks([])
+    plt.yticks([])
+    plt.colorbar(orientation='horizontal',pad=0.05,anchor=(0,0,0.5))
+    #plt.colorbar(orientation='horizontal')
+
+    plt.savefig('color.png', bbox_inches='tight')
     cv2.imshow('b',diffpM)
     cv2.imwrite('SS+SMD{}.jpg'.format(rN),diffpM)
-    cv2.waitKey()
+    cv2.waitKey(1)
     #diffpNs=data['diffpNs']
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
@@ -371,8 +382,8 @@ if __name__=="__main__":
     #     # xmlfile=xmlp
     #     batch=dataBlobDiffBackground(imgp,xmlp,transforms)
     output_dir = cfg.OUTPUT_DIR
-    # path='E:/DA2/logSSToSMDshipC/extractfeature/customData/feaMapD'
-    # visualDifferBackground(path)
+    path='E:/DA2/logSSToSMDshipC/extractfeature/customData/feaMapD'#背景差异热力图
+    visualDifferBackground(path)
     # exit(2)
     model = {}
     model["backbone"] = build_backbone(cfg).to(cfg.MODEL.DEVICE)#model+fpn

@@ -43,7 +43,7 @@ def train(cfg, local_rank, distributed):
     model = {}
     device = torch.device(cfg.MODEL.DEVICE)
 
-    backbone = build_backbone(cfg).to(device)
+    backbone = build_backbone(cfg).to(device)#
     fcos = build_rpn(cfg, backbone.out_channels).to(device)
 
     if cfg.MODEL.ADV.USE_DIS_GLOBAL:
